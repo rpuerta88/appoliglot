@@ -153,6 +153,69 @@ async function poblarSelectores() {
     console.log("¡Selectores del formulario actualizados con éxito!");
 }
 
+// Escuchador para Registrar un Idioma desde Configuración (Nativo + Seguro)
+document.getElementById('form-config-idioma').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const nombre = document.getElementById('conf-idioma-nombre').value.trim();
+    const simbolo = document.getElementById('conf-idioma-simbolo').value.trim();
+
+    if (esAndroid && db_real) {
+        const sqlInsert = `INSERT INTO idiomas (nombre, simbolo) VALUES (?, ?);`;
+        try {
+            await db_real.run({ statement: sqlInsert, values: [nombre, simbolo] });
+            alert(`Idioma "${nombre}" agregado con éxito a SQLite.`);
+            this.reset();
+            
+            // Retraso para dar tiempo a SQLite de indexar el archivo interno
+            setTimeout(async () => {
+                await poblarSelectores();
+            }, 250);
+        } catch (error) {
+            console.error("Error al insertar idioma en SQLite móvil:", error);
+            alert("Error: El símbolo o nombre de este idioma ya existe.");
+        }
+    } else {
+        const existe = db_idiomas.some(i => i.simbolo.toLowerCase() === simbolo.toLowerCase());
+        if (existe) { alert("Error [PC]: El idioma ya está simulado."); return; }
+        db_idiomas.push({ id: db_idiomas.length + 1, nombre: nombre, simbolo: simbolo });
+        await poblarSelectores();
+        alert(`[PC] Idioma "${nombre}" agregado a la simulación.`);
+        this.reset();
+    }
+});
+
+// Escuchador para Registrar una Categoría desde Configuración (Nativo + Seguro)
+document.getElementById('form-config-categoria').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const nombre = document.getElementById('conf-categoria-nombre').value.trim();
+
+    if (esAndroid && db_real) {
+        const sqlInsert = `INSERT INTO categorias (nombre) VALUES (?);`;
+        try {
+            await db_real.run({ statement: sqlInsert, values: [nombre] });
+            alert(`Categoría "${nombre}" agregada con éxito a SQLite.`);
+            this.reset();
+            
+            setTimeout(async () => {
+                await poblarSelectores();
+            }, 250);
+        } catch (error) {
+            console.error("Error al insertar categoría en SQLite móvil:", error);
+            alert("Error: Esta categoría ya se encuentra registrada.");
+        }
+    } else {
+        const existe = db_categorias.some(c => c.nombre.toLowerCase() === nombre.toLowerCase());
+        if (existe) { alert("Error [PC]: La categoría ya está simulada."); return; }
+        db_categorias.push({ id: db_categorias.length + 1, nombre: nombre });
+        await poblarSelectores();
+        alert(`[PC] Categoría "${nombre}" agregada a la simulación.`);
+        this.reset();
+    }
+});
+
+
 // Activa el modo edición cargando los datos en el formulario principal
 function prepararEdicion(elemento) {
     idElementoEdicion = elemento.id; // Guardamos el ID que estamos editando
@@ -458,22 +521,27 @@ function cambiarPantalla(idPantallaObjetivo) {
         botonActivo.classList.add('activo');
     }
 
-    // Acciones automáticas al abrir pestañas específicas
+    // --- ESCUCHADORES DINÁMICOS DE NAVEGACIÓN ---
+    if (idPantallaObjetivo === 'pantalla-registro') {
+        console.log("Abriendo registro: Actualizando selectores desde la base de datos...");
+        poblarSelectores(); // <-- Corrección clave: lee la BD al abrir la pestaña
+    }
     if (idPantallaObjetivo === 'pantalla-repaso') {
-        // Aquí llamaremos a la carga de tarjetas cuando la migremos
         console.log("Cargando sesión de repaso...");
+        cargarSesionRepaso();
     }
     if (idPantallaObjetivo === 'pantalla-buscador') {
-        // Aquí llamaremos al buscador cuando lo migremos
         console.log("Abriendo baúl de palabras automatizadas...");
+        ejecutarBusqueda();
     }
-        // Dentro de tu función cambiarPantalla(idPantallaObjetivo)
-    if (idPantallaObjetivo === 'pantalla-repaso') {
-        cargarSesionRepaso(); // <-- Modifica o agrega esta línea para que lea las tarjetas al abrir la pestaña
+    if (idPantallaObjetivo === 'pantalla-configuracion') {
+        console.log("Abriendo ajustes: Actualizando estadísticas...");
+        if (typeof actualizarEstadisticas === 'function') {
+            actualizarEstadisticas();
+        }
     }
-
 }
- 
+
  // =========================================================================
 // 7. MÓDULO DE ESTADÍSTICAS E INDICADORES (Híbrido)
 // =========================================================================
