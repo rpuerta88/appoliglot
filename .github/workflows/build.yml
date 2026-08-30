@@ -12,13 +12,13 @@ jobs:
     - name: Descargar el código fuente desde el repositorio
       uses: actions/checkout@v4
 
-    - name: Configurar Entorno de Node.js v20
+    - name: Configurar Entorno de Node.js v24 (Versión Actualizada 2026)
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 24
 
-    - name: Configurar Java 21 (Motor de Compilación)
-      uses: actions/setup-java@v4
+    - name: Configurar Java 21 usando la Acción v5 (Sin Advertencias)
+      uses: actions/setup-java@v5
       with:
         distribution: 'zulu'
         java-version: '21'
