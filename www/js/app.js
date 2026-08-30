@@ -183,78 +183,151 @@ function limpiarModoEdicion() {
     document.getElementById('formulario-registro').reset();
 }
 
-
-
 // =========================================================================
-// 4. FLUJO DE LA SESIÓN DE REPASO
+// 4. FLUJO DE LA SESIÓN DE REPASO (Híbrido + Interactividad SM-2)
 // =========================================================================
-function cargarSesionRepaso() {
+
+// Carga la siguiente tarjeta pendiente de estudio programada para hoy o vencida
+async function cargarSesionRepaso() {
     ocultarRespuesta();
-    const hoy = new Date().toISOString().split('T')[0];
     
-    // Filtrar elementos pendientes (cuya fecha sea menor o igual a hoy y estén en aprendizaje)
-    const pendientes = db_elementos.filter(e => e.proximo_repaso <= hoy && e.estado === 'aprendizaje');
+    // Obtener la fecha de hoy local en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().split('T')[0];
+    let pendientes = [];
+
+    // 1. ESCENARIO EN ANDROID: Consulta relacional avanzada en SQLite Nativo
+    if (esAndroid && db_real) {
+        try {
+            const sqlQuery = `
+                SELECT e.*, i.nombre AS idioma_nombre, c.nombre AS categoria_nombre 
+                FROM elementos e
+                JOIN idiomas i ON e.idioma_id = i.id
+                JOIN categorias c ON e.categoria_id = c.id
+                WHERE e.proximo_repaso <= ? AND e.estado = 'aprendizaje'
+                ORDER BY e.id ASC;
+            `;
+            const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });
+            pendientes = resultado.values || [];
+        } catch (error) {
+            console.error("Error al cargar repasos desde SQLite móvil:", error);
+        }
+    } 
+    // 2. ESCENARIO EN LA PC: Filtro síncrono sobre el inventario en memoria
+    else {
+        pendientes = db_elementos.filter(e => e.proximo_repaso <= hoy && e.estado === 'aprendizaje');
+    }
+
+    // --- RENDERIZADO VISUAL DE LA EVALUACIÓN ---
+    const lblTipo = document.getElementById('repaso-tipo');
+    const txtOrigen = document.getElementById('repaso-origen');
+    const txtContexto = document.getElementById('repaso-contexto');
+    const txtDestino = document.getElementById('repaso-destino');
+    const btnMostrar = document.getElementById('btn-mostrar-respuesta');
 
     if (pendientes.length === 0) {
-        document.getElementById('repaso-tipo').innerText = "-";
-        document.getElementById('repaso-origen').innerText = "¡Estás al día! No hay tarjetas pendientes.";
-        document.getElementById('repaso-contexto').innerText = "";
-        document.getElementById('btn-mostrar-respuesta').style.display = 'none';
+        if (lblTipo) lblTipo.innerText = "-";
+        if (txtOrigen) txtOrigen.innerText = "¡Estás al día! No hay tarjetas pendientes para repasar hoy.";
+        if (txtContexto) txtContexto.innerText = "";
+        if (btnMostrar) btnMostrar.style.display = 'none';
+        tarjetaActual = null;
         return;
     }
 
-    document.getElementById('btn-mostrar-respuesta').style.display = 'block';
-    tarjetaActual = pendientes[0]; // Tomamos la primera de la lista
-    tarjetaActual.vistas++;
+    if (btnMostrar) btnMostrar.style.display = 'block';
+    
+    // Extraemos la primera tarjeta de la fila de pendientes
+    const registro = pendientes[0];
+    
+    // Mapeamos el objeto para homogeneizar la lectura de datos
+    tarjetaActual = {
+        id: registro.id,
+        idioma_id: registro.idioma_id,
+        categoria_id: registro.categoria_id,
+        tipo: registro.tipo,
+        termino: registro.termino,
+        traduccion: registro.traduccion,
+        contexto: registro.contexto,
+        vistas: (registro.vistas || 0) + 1,
+        intervalo: registro.intervalo || 0,
+        factor_facilidad: registro.factor_facilidad || 2.5,
+        repeticiones: registro.repeticiones || 0,
+        idioma_nombre: registro.idioma_nombre || "Inglés Americano",
+        idioma_simbolo: registro.simbolo || "en-US", // <-- AÑADE ESTA LÍNEA DE RESPALDO
+        categoria_nombre: registro.categoria_nombre || "Viajes"
+    };
 
-    // Mostrar datos legibles buscando sus nombres mediante sus IDs de forma transparente
-    const idiomaObj = db_idiomas.find(i => i.id === tarjetaActual.idioma_id);
-    const catObj = db_categorias.find(c => c.id === tarjetaActual.categoria_id);
-
-    document.getElementById('repaso-tipo').innerText = `${tarjetaActual.tipo.toUpperCase()} | ${idiomaObj.nombre} | ${catObj.nombre}`;
-    document.getElementById('repaso-origen').innerText = tarjetaActual.termino;
-    document.getElementById('repaso-contexto').innerText = tarjetaActual.contexto || "Sin contexto adicional";
-    document.getElementById('repaso-destino').innerText = tarjetaActual.traduccion;
+    // Imprimir los datos limpios en la tarjeta web (ocultando los IDs)
+    if (lblTipo) lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
+    if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
+    if (txtContexto) txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";
+    if (txtDestino) txtDestino.innerText = tarjetaActual.traduccion;
 }
 
-function calificarTarjeta(calificacion) {
-    // Ejecutar el algoritmo matemático
-    const resultadoSRS = calcularSRS(
+// Ejecuta el algoritmo matemático SM-2 y actualiza los tiempos de la tarjeta
+async function calificarTarjeta(calificacion) {
+    if (!tarjetaActual) return;
+
+    // Calcular las nuevas variables de memoria en base a la nota del usuario (1 al 4)
+    const srs = calcularSRS(
         calificacion, 
         tarjetaActual.intervalo, 
         tarjetaActual.factor_facilidad, 
         tarjetaActual.repeticiones
     );
 
-    // Actualizar el elemento en nuestra simulación de base de datos
-    tarjetaActual.intervalo = resultadoSRS.intervalo;
-    tarjetaActual.factor_facilidad = resultadoSRS.factor_facilidad;
-    tarjetaActual.repeticiones = resultadoSRS.repeticiones;
-    tarjetaActual.proximo_repaso = resultadoSRS.proximo_repaso;
-    tarjetaActual.estado = resultadoSRS.estado;
-
-    // Verificar si se automatizó para mandarla al Storage exclusivo
-    if (resultadoSRS.estado === 'automatizada') {
-        let automatizadas = JSON.parse(localStorage.getItem('palabras_automatizadas')) || [];
-        
-        const idiomaObj = db_idiomas.find(i => i.id === tarjetaActual.idioma_id);
-        const catObj = db_categorias.find(c => c.id === tarjetaActual.categoria_id);
-
-        automatizadas.push({
-            id: tarjetaActual.id,
-            termino: tarjetaActual.termino,
-            traduccion: tarjetaActual.traduccion,
-            contexto: tarjetaActual.contexto,
-            idioma: idiomaObj.nombre,
-            categoria: catObj.nombre
-        });
-        localStorage.setItem('palabras_automatizadas', JSON.stringify(automatizadas));
-        alert(`¡Espectacular! La frase se ha automatizado (Intervalo: ${resultadoSRS.intervalo} días) y se archivó.`);
+    // 1. ESCENARIO EN ANDROID: Persistencia nativa mediante UPDATE en SQLite
+    if (esAndroid && db_real) {
+        try {
+            const sqlUpdate = `
+                UPDATE elementos 
+                SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ?
+                WHERE id = ?;
+            `;
+            await db_real.run({
+                statement: sqlUpdate,
+                values: [srs.intervalo, srs.factor_facilidad, srs.repeticiones, srs.estado, srs.proximo_repaso[0], tarjetaActual.vistas, tarjetaActual.id]
+            });
+        } catch (error) {
+            console.error("Error al actualizar la tarjeta en SQLite:", error);
+        }
+    } 
+    // 2. ESCENARIO EN LA PC: Persistencia en los arreglos de simulación
+    else {
+        const index = db_elementos.findIndex(e => e.id === tarjetaActual.id);
+        if (index !== -1) {
+            db_elementos[index].intervalo = srs.intervalo;
+            db_elementos[index].factor_facilidad = srs.factor_facilidad;
+            db_elementos[index].repeticiones = srs.repeticiones;
+            db_elementos[index].estado = srs.estado;
+            db_elementos[index].proximo_repaso = srs.proximo_repaso[0];
+            db_elementos[index].vistas = tarjetaActual.vistas;
+        }
     }
 
-    // Recargar la pantalla para mostrar la siguiente tarjeta pendiente
-    cargarSesionRepaso();
+    // 3. LOGICA DE ENTRADA AL LOCALSTORAGE (Si el estado cambió a automatizada)
+    if (srs.estado === 'automatizada') {
+        let automatizadas = JSON.parse(localStorage.getItem('palabras_automatizadas')) || [];
+        
+        // Evitar registros duplicados en el almacenamiento local
+        if (!automatizadas.some(item => item.id === tarjetaActual.id)) {
+            automatizadas.push({
+                id: tarjetaActual.id,
+                termino: tarjetaActual.termino,
+                traduccion: tarjetaActual.traduccion,
+                contexto: tarjetaActual.contexto,
+                idioma: tarjetaActual.idioma_nombre,
+                categoria: tarjetaActual.categoria_nombre
+            });
+            localStorage.setItem('palabras_automatizadas', JSON.stringify(automatizadas));
+        }
+        alert(`¡Espectacular! Se logró la automatización de este término. Programado para repaso a largo plazo y archivado.`);
+    }
+
+    // Cargar inmediatamente la siguiente tarjeta que toque estudiar
+    await cargarSesionRepaso();
 }
+
+
 
 // =========================================================================
 // 5. MÓDULO DEL BUSCADOR DE PALABRAS AUTOMATIZADAS (Híbrido + Edición)
@@ -327,10 +400,9 @@ async function ejecutarBusqueda() {
                     </span>
                 </div>
                 <div>
-                    <!-- El botón convierte el objeto a JSON seguro para inyectarlo en la función de edición -->
-                    <button class="btn-editar-item" data-id="${item.id}" style="background: #ff9800; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">✏️</button>
+                    <button class="btn-editar-item" data-id="${item.id}" style="background: #ff9800; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; margin-right: 5px;">✏️</button>
+                    <button class="btn-eliminar-item" data-id="${item.id}" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">🗑️</button>
                 </div>
-            </div>
         `;
         contenedorResultados.innerHTML += tarjetaHTML;
     });
@@ -353,6 +425,13 @@ async function ejecutarBusqueda() {
                 };
                 prepararEdicion(datosNormalizados);
             }
+        });
+    });
+    // Al final de ejecutarBusqueda()
+    document.querySelectorAll('.btn-eliminar-item').forEach(boton => {
+        boton.addEventListener('click', function() {
+            const idBuscar = parseInt(this.getAttribute('data-id'));
+            eliminarElemento(idBuscar);
         });
     });
 }
@@ -388,7 +467,170 @@ function cambiarPantalla(idPantallaObjetivo) {
         // Aquí llamaremos al buscador cuando lo migremos
         console.log("Abriendo baúl de palabras automatizadas...");
     }
+        // Dentro de tu función cambiarPantalla(idPantallaObjetivo)
+    if (idPantallaObjetivo === 'pantalla-repaso') {
+        cargarSesionRepaso(); // <-- Modifica o agrega esta línea para que lea las tarjetas al abrir la pestaña
+    }
+
 }
+ 
+ // =========================================================================
+// 7. MÓDULO DE ESTADÍSTICAS E INDICADORES (Híbrido)
+// =========================================================================
+async function actualizarEstadisticas() {
+    const txtAprendizaje = document.getElementById('est-aprendizaje');
+    const txtAutomatizadas = document.getElementById('est-automatizadas');
+    
+    if (!txtAprendizaje || !txtAutomatizadas) return;
+
+    let totalAprendizaje = 0;
+    let totalAutomatizadas = 0;
+
+    // 1. CASO EN ANDROID: Consultas COUNT directas a SQLite Nativo
+    if (esAndroid && db_real) {
+        try {
+            // Contar registros en fase de aprendizaje
+            const resAp = await db_real.query({ 
+                statement: "SELECT COUNT(*) AS total FROM elementos WHERE estado = 'aprendizaje';" 
+            });
+            totalAprendizaje = resAp.values[0]?.total || 0;
+
+            // Contar registros ya automatizados
+            const resAu = await db_real.query({ 
+                statement: "SELECT COUNT(*) AS total FROM elementos WHERE estado = 'automatizada';" 
+            });
+            totalAutomatizadas = resAu.values[0]?.total || 0;
+        } catch (error) {
+            console.error("Error al calcular estadísticas en SQLite móvil:", error);
+        }
+    } 
+    // 2. CASO EN LA PC: Conteo sobre los almacenes locales en memoria
+    else {
+        totalAprendizaje = db_elementos.filter(e => e.estado === 'aprendizaje').length;
+        
+        // Contamos las que están en el LocalStorage simulado de la PC
+        const simAutomatizadas = JSON.parse(localStorage.getItem('palabras_automatizadas')) || [];
+        totalAutomatizadas = simAutomatizadas.length;
+    }
+
+    // 3. ACTUALIZAR INTERFAZ GRÁFICA
+    txtAprendizaje.innerText = totalAprendizaje;
+    txtAutomatizadas.innerText = totalAutomatizadas;
+    console.log(`Estadísticas al día -> Aprendiendo: ${totalAprendizaje}, Dominadas: ${totalAutomatizadas}`);
+}
+
+// =========================================================================
+// 8. ACCIÓN DE ELIMINACIÓN HÍBRIDA (SQLite y LocalStorage)
+// =========================================================================
+async function eliminarElemento(idEliminar) {
+    const confirmar = confirm("¿Estás seguro de que deseas eliminar este término por completo de tu vocabulario?");
+    if (!confirmar) return;
+
+    // 1. ESCENARIO EN ANDROID: Eliminación física en la base de datos real
+    if (esAndroid && db_real) {
+        try {
+            const sqlDelete = `DELETE FROM elementos WHERE id = ?;`;
+            await db_real.run({
+                statement: sqlDelete,
+                values: [idEliminar]
+            });
+            alert("Término eliminado de forma permanente de tu SQLite móvil.");
+        } catch (error) {
+            console.error("Error al eliminar registro en SQLite:", error);
+        }
+    } 
+    // 2. ESCENARIO EN LA PC: Limpieza del inventario de memoria y del LocalStorage
+    else {
+        // Remover del inventario de estudio en memoria
+        db_elementos = db_elementos.filter(e => e.id !== idEliminar);
+
+        // APLICACIÓN DE LA LÓGICA DE LOCALSTORAGE:
+        // Extraemos el texto, lo convertimos a arreglo, filtramos y volvemos a guardar en texto
+        let automatizadas = JSON.parse(localStorage.getItem('palabras_automatizadas')) || [];
+        automatizadas = automatizadas.filter(item => item.id !== idEliminar);
+        localStorage.setItem('palabras_automatizadas', JSON.stringify(automatizadas));
+        
+        alert("[PC] Término removido con éxito del almacenamiento local.");
+    }
+
+    // 3. REFRESCO INMEDIATO: Volver a renderizar la lista y actualizar los contadores
+    await ejecutarBusqueda();
+    if (typeof actualizarEstadisticas === 'function') {
+        await actualizarEstadisticas();
+    }
+}
+
+// =========================================================================
+// 9. HERRAMIENTAS AUDITIVAS Y VISUALES (TTS Nativo + Pistas)
+// =========================================================================
+
+// Motor de Pronunciación de Texto a Voz (Nativo en PC y Android)
+function escucharTermino() {
+    if (!tarjetaActual || !tarjetaActual.termino) return;
+
+    // Verificar si el motor de síntesis de voz está disponible en el equipo
+    if ('speechSynthesis' in window) {
+        // Detener cualquier audio previo que esté sonando para evitar superposiciones
+        window.speechSynthesis.cancel();
+
+        const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
+        
+        // Configurar el idioma de reproducción según el símbolo asignado (ej: 'en-US', 'fr-FR')
+        // Si tienes símbolos extendidos, tomamos los primeros dos caracteres (ej: 'en')
+        const codigoIdioma = tarjetaActual.idioma_simbolo || 'en';
+        enunciado.lang = codigoIdioma;
+        
+        // Ajustes opcionales de velocidad (1.0 es velocidad normal)
+        enunciado.rate = 0.9; 
+
+        window.speechSynthesis.speak(enunciado);
+    } else {
+        alert("Lo siento, tu dispositivo o navegador no soporta la reproducción de audio nativa.");
+    }
+}
+
+// Muestra el contexto de manera controlada como una pista de estudio
+function mostrarPistaVisual() {
+    const txtContexto = document.getElementById('repaso-contexto');
+    if (!txtContexto || !tarjetaActual) return;
+
+    // Si está oculto, lo revelamos quitando la clase de control
+    if (txtContexto.classList.contains('oculta')) {
+        txtContexto.classList.remove('oculta');
+        console.log("Pista de contexto revelada al usuario.");
+    } else {
+        // Si el usuario vuelve a presionar, se oculta para dinámicas de estudio
+        txtContexto.classList.add('oculta');
+    }
+}
+
+// =========================================================================
+// 10. CONTROLADORES VISUALES DE LA TARJETA (Doble Cara)
+// =========================================================================
+function mostrarRespuesta() {
+    const dorso = document.getElementById('tarjeta-dorso');
+    const btnMostrar = document.getElementById('btn-mostrar-respuesta');
+    const grupoBotones = document.getElementById('botones-calificacion');
+
+    if (dorso) dorso.classList.remove('oculta');
+    if (btnMostrar) btnMostrar.classList.add('oculta');
+    if (grupoBotones) grupoBotones.classList.remove('oculta');
+}
+
+function ocultarRespuesta() {
+    const dorso = document.getElementById('tarjeta-dorso');
+    const btnMostrar = document.getElementById('btn-mostrar-respuesta');
+    const grupoBotones = document.getElementById('botones-calificacion');
+    const txtContexto = document.getElementById('repaso-contexto');
+
+    if (dorso) dorso.classList.add('oculta');
+    if (btnMostrar) btnMostrar.classList.remove('oculta');
+    if (grupoBotones) grupoBotones.classList.add('oculta');
+    
+    // Ocultamos también la pista visual para que la siguiente tarjeta inicie limpia
+    if (txtContexto) txtContexto.classList.add('oculta');
+}
+
    
 /*
 1. Asegúrate de que los archivos `index.html`, `css/estilos.css` y `js/app.js` estén guardados en la ruta `/home/ronaldpuerta/mi_idioma_app/www/`.

@@ -59,8 +59,17 @@
                 <div class="tarjeta-frente">
                     <span id="repaso-tipo" class="etiqueta-tipo">Frase</span>
                     <p id="repaso-origen">Cargando término...</p>
-                    <small id="repaso-contexto">Contexto aquí</small>
+                    
+                    <!-- BLOQUE DE HERRAMIENTAS ADICIONALES (NUEVO) -->
+                    <div class="herramientas-estudio" style="margin: 15px 0;">
+                        <button type="button" onclick="escucharTermino()" class="btn-herramienta" title="Escuchar pronunciación">🔊 Escuchar</button>
+                        <button type="button" onclick="mostrarPistaVisual()" class="btn-herramienta" title="Ver pista de contexto" style="background-color: #9c27b0;">💡 Pista</button>
                 </div>
+
+                    <!-- El contexto ahora iniciará oculto bajo la pista -->
+                    <small id="repaso-contexto" class="oculta" style="display: block; margin-top: 10px; font-style: italic; color: #666;"></small>
+                </div>
+
                 <div id="tarjeta-dorso" class="tarjeta-dorso oculta">
                     <hr>
                     <p id="repaso-destino">Traducción aquí</p>
@@ -89,7 +98,24 @@
 
         <!-- 4. PANTALLA DE CONFIGURACIÓN (NUEVA) -->
         <section id="pantalla-configuracion" class="pantalla oculta">
-            <h2>Configuración del Sistema</h2>
+            <h2>Configuración y Progreso</h2>
+            
+            <!-- Panel de Estadísticas (NUEVO) -->
+            <div class="bloque-config" style="border-top-color: #9c27b0;">
+                <h3>📊 Tu Progreso de Aprendizaje</h3>
+                <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px;">
+                    <div>
+                        <span id="est-aprendizaje" style="font-size: 1.8rem; font-weight: bold; color: #2196F3;">0</span>
+                        <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #666;">En Aprendizaje</p>
+                    </div>
+                    <div style="border-left: 1px solid #ccc;"></div>
+                    <div>
+                        <span id="est-automatizadas" style="font-size: 1.8rem; font-weight: bold; color: #4caf50;">0</span>
+                        <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #666;">Automatizadas</p>
+                    </div>
+                </div>
+            </div>
+
             
             <!-- Bloque Agregar Idioma -->
             <div class="bloque-config">

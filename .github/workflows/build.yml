@@ -1,0 +1,48 @@
+name: Compilar APK de Idiomas en la Nube
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Descargar el código fuente desde el repositorio
+      uses: actions/checkout@v4
+
+    - name: Configurar Entorno de Node.js v20
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Configurar Java 21 (Motor de Compilación)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+
+    - name: Instalar Dependencias de la Aplicación
+      run: |
+        npm install
+        npm install @capacitor/core@6
+        npm install -D @capacitor/cli@6
+        npm install @capacitor/android@6
+        npm install @capacitor-community/sqlite@6
+
+    - name: Sincronizar e Inyectar Código Web en Android
+      run: |
+        npx cap sync android
+
+    - name: Compilar APK usando el Gradle del Proyecto
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
+    - name: Subir el APK Terminado para su Descarga
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-idiomas-debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
