@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi App de Idiomas (SRS)</title>
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+    <!-- MENÚ DE NAVEGACIÓN INFERIOR (Pestañas) -->
+    <nav class="barra-navegacion">
+        <button onclick="cambiarPantalla('pantalla-registro')" class="btn-nav activo">📝 Registrar</button>
+        <button onclick="cambiarPantalla('pantalla-repaso')" class="btn-nav">🧠 Repasar</button>
+        <button onclick="cambiarPantalla('pantalla-buscador')" class="btn-nav">🔍 Automatizadas</button>
+        <button onclick="cambiarPantalla('pantalla-configuracion')" class="btn-nav">⚙️ Ajustes</button>
+    </nav>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <main class="contenedor-app">
+
+        <!-- 1. PANTALLA DE REGISTRO -->
+        <section id="pantalla-registro" class="pantalla">
+            <h2>Registrar Nuevo Término</h2>
+            <form id="formulario-registro">
+                <label for="reg-idioma">Idioma:</label>
+                <select id="reg-idioma" required>
+                    <option value="">Selecciona un idioma...</option>
+                </select>
+
+                <label for="reg-categoria">Categoría Semántica:</label>
+                <select id="reg-categoria" required>
+                    <option value="">Selecciona una categoría...</option>
+                </select>
+
+                <label for="reg-tipo">Tipo de término:</label>
+                <select id="reg-tipo" required>
+                    <option value="palabra">Palabra</option>
+                    <option value="frase">Frase</option>
+                </select>
+
+                <label for="reg-termino">Término u Origen:</label>
+                <input type="text" id="reg-termino" placeholder="Ej: Book a flight" required>
+
+                <label for="reg-traduccion">Traducción:</label>
+                <input type="text" id="reg-traduccion" placeholder="Ej: Reservar un vuelo" required>
+
+                <label for="reg-contexto">Contexto (Opcional):</label>
+                <textarea id="reg-contexto" placeholder="Ej: I need to book a flight to NY" rows="3"></textarea>
+
+                <button type="submit" class="btn-guardar">Guardar en mi Vocabulario</button>
+            </form>
+        </section>
+
+        <!-- 2. PANTALLA DE REPASO ESPACIADO -->
+        <section id="pantalla-repaso" class="pantalla oculta">
+            <h2>Sesión de Repaso</h2>
+            <div id="tarjeta-estudio" class="tarjeta">
+                <div class="tarjeta-frente">
+                    <span id="repaso-tipo" class="etiqueta-tipo">Frase</span>
+                    <p id="repaso-origen">Cargando término...</p>
+                    <small id="repaso-contexto">Contexto aquí</small>
+                </div>
+                <div id="tarjeta-dorso" class="tarjeta-dorso oculta">
+                    <hr>
+                    <p id="repaso-destino">Traducción aquí</p>
+                </div>
+            </div>
+            
+            <div class="controles-repaso">
+                <button id="btn-mostrar-respuesta" onclick="mostrarRespuesta()" class="btn-accion">Mostrar Respuesta</button>
+                
+                <div id="botones-calificacion" class="grupo-botones oculta">
+                    <button onclick="calificarTarjeta(1)" class="btn-calificar rojo">Otra vez (1)</button>
+                    <button onclick="calificarTarjeta(2)" class="btn-calificar amarillo">Difícil (2)</button>
+                    <button onclick="calificarTarjeta(3)" class="btn-calificar azul">Bien (3)</button>
+                    <button onclick="calificarTarjeta(4)" class="btn-calificar verde">Fácil (4)</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. PANTALLA DEL BUSCADOR DE AUTOMATIZADAS -->
+        <section id="pantalla-buscador" class="pantalla oculta">
+            <h2>Palabras Automatizadas</h2>
+            <input type="text" id="input-busqueda" oninput="ejecutarBusqueda()" placeholder="Buscar por palabra, traducción o contexto...">
+            
+            <div id="lista-automatizadas" class="lista-resultados"></div>
+        </section>
+
+        <!-- 4. PANTALLA DE CONFIGURACIÓN (NUEVA) -->
+        <section id="pantalla-configuracion" class="pantalla oculta">
+            <h2>Configuración del Sistema</h2>
+            
+            <!-- Bloque Agregar Idioma -->
+            <div class="bloque-config">
+                <h3>➕ Agregar Nuevo Idioma</h3>
+                <form id="form-config-idioma">
+                    <label for="conf-idioma-nombre">Nombre del Idioma:</label>
+                    <input type="text" id="conf-idioma-nombre" placeholder="Ej: Francés, Alemán" required>
+                    
+                    <label for="conf-idioma-simbolo">Símbolo Internacional:</label>
+                    <input type="text" id="conf-idioma-simbolo" placeholder="Ej: fr-FR, de-DE" required>
+                    
+                    <button type="submit" class="btn-guardar btn-secundario">Registrar Idioma</button>
+                </form>
+            </div>
+
+            <!-- Bloque Agregar Categoría -->
+            <div class="bloque-config">
+                <h3>➕ Agregar Categoría Semántica</h3>
+                <form id="form-config-categoria">
+                    <label for="conf-categoria-nombre">Nombre de la Categoría:</label>
+                    <input type="text" id="conf-categoria-nombre" placeholder="Ej: Comida, Trabajo" required>
+                    
+                    <button type="submit" class="btn-guardar btn-secundario">Registrar Categoría</button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- SCRIPTS -->
+    <script src="js/app.js"></script>
+</body>
+</html>
+
