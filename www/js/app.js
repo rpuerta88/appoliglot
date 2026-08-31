@@ -44,7 +44,8 @@ async function crearTablasSiNoExisten() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             idioma_id INTEGER NOT NULL, 
             categoria_id INTEGER NOT NULL,
-            termino TEXT NOT NULL, 
+            termino TEXT NOT NULL,
+            fonetica TEXT NOT NULL, 
             traduccion TEXT NOT NULL, 
             contexto TEXT, 
             vistas INTEGER DEFAULT 0,
@@ -196,6 +197,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
     const categoriaId = parseInt(document.getElementById('reg-categoria').value);
     const tipo = document.getElementById('reg-tipo').value;
     const termino = document.getElementById('reg-termino').value.trim();
+    const fonetica = document.getElementById('reg-fonetica').value.trim();
     const traduccion = document.getElementById('reg-traduccion').value.trim();
     const contexto = document.getElementById('reg-contexto').value.trim();
 
@@ -203,13 +205,13 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
         // --- PROCESO DE EDICIÓN (UPDATE) ---
         const sqlUpdate = `
             UPDATE elementos 
-            SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, traduccion = ?, contexto = ?
+            SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, fonetica = ?, traduccion = ?, contexto = ?
             WHERE id = ?;
         `;
         try {
             await db_real.run({ 
                 statement: sqlUpdate, 
-                values: [idiomaId, categoriaId, tipo, termino, traduccion, contexto, idElementoEdicion] 
+                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, idElementoEdicion] 
             });
             alert("¡Término actualizado con éxito!");
             limpiarModoEdicion();
@@ -220,13 +222,13 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
         // --- PROCESO DE CREACIÓN (INSERT) ---
         const hoy = new Date().toISOString().split('T')[0];
         const sqlInsert = `
-            INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, traduccion, contexto, proximo_repaso) 
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, fonetica, traduccion, contexto, proximo_repaso) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         `;
         try {
             await db_real.run({ 
                 statement: sqlInsert, 
-                values: [idiomaId, categoriaId, tipo, termino, traduccion, contexto, hoy] 
+                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, hoy] 
             });
             alert(`¡"${termino}" agendado para estudio hoy!`);
             this.reset();
@@ -242,6 +244,7 @@ function prepararEdicion(elemento) {
     document.getElementById('reg-categoria').value = elemento.categoria_id;
     document.getElementById('reg-tipo').value = elemento.tipo;
     document.getElementById('reg-termino').value = elemento.termino;
+    document.getElementById('reg-fonetica').value = elemento.fonetica;
     document.getElementById('reg-traduccion').value = elemento.traduccion;
     document.getElementById('reg-contexto').value = elemento.contexto || "";
 
@@ -281,7 +284,7 @@ async function cargarSesionRepaso() {
        if (btnMostrar) btnMostrar.style.display = 'block';
        const registro = pendientes[0];
        
-       tarjetaActual = {id: registro.id,idioma_id: registro.idioma_id,categoria_id: registro.categoria_id,tipo: registro.tipo,termino: registro.termino,traduccion: registro.traduccion,contexto: registro.contexto,vistas: (registro.vistas || 0) + 1,intervalo: registro.intervalo || 0,factor_facilidad: registro.factor_facilidad || 2.5,repeticiones: registro.repeticiones || 0,idioma_nombre: registro.idioma_nombre,idioma_simbolo: registro.idioma_simbolo,categoria_nombre: registro.categoria_nombre
+       tarjetaActual = {id: registro.id,idioma_id: registro.idioma_id,categoria_id: registro.categoria_id,tipo: registro.tipo,termino: registro.termino,fonetica: registro.fonetica,traduccion: registro.traduccion,contexto: registro.contexto,vistas: (registro.vistas || 0) + 1,intervalo: registro.intervalo || 0,factor_facilidad: registro.factor_facilidad || 2.5,repeticiones: registro.repeticiones || 0,idioma_nombre: registro.idioma_nombre,idioma_simbolo: registro.idioma_simbolo,categoria_nombre: registro.categoria_nombre
        };
        
        if (lblTipo) lblTipo.innerText = ${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre};if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;if (txtContexto) txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";if (txtDestino) txtDestino.innerText = tarjetaActual.traduccion;}
@@ -300,6 +303,7 @@ async function cargarSesionRepaso() {
        automatizadas.push({
        id: tarjetaActual.id,
        termino: tarjetaActual.termino,
+       fonetica: tarjetaActual.fonetica,
        traduccion: tarjetaActual.traduccion,
        contexto: tarjetaActual.contexto,
        idioma: tarjetaActual.idioma_nombre,
@@ -439,9 +443,10 @@ function cambiarPantalla(idPantallaObjetivo) {
     if (idPantallaObjetivo === 'pantalla-buscador') ejecutarBusqueda();
     if (idPantallaObjetivo === 'pantalla-configuracion') actualizarEstadisticas();
 }
+window.cambiarPantalla = cambiarPantalla;
          
 function mostrarRespuesta() {
-         document.getElementById('tarjeta-dorso')?.classList.remove('oculta
+         document.getElementById('tarjeta-dorso')?.classList.remove('oculta');
          document.getElementById('btn-mostrar-respuesta')?.classList.add('oculta');
          document.getElementById('botones-calificacion')?.classList.remove('oculta');
 }
