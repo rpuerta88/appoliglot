@@ -435,9 +435,8 @@ function cambiarPantalla(idPantallaObjetivo) {
     const pantallaDestino = document.getElementById(idPantallaObjetivo);
     if (pantallaDestino) pantallaDestino.classList.remove('oculta');
 
-    const botonActivo = Array.from(document.querySelectorAll('.btn-nav')).find(b => b.getAttribute('onclick').includes(idPantallaObjetivo));
-    
-    // CORRECCIÓN: Dejar únicamente la clase 'activo'
+    const botonActivo = Array.from(document.querySelectorAll('.btn-nav')).find(b => b.getAttribute('data-pantalla') === idPantallaObjetivo);
+
     if (botonActivo) botonActivo.classList.add('activo');
 
     // Carga de datos dinámica obligatoria al cambiar de pestaña
@@ -460,3 +459,17 @@ function ocultarRespuesta() {
          document.getElementById('botones-calificacion')?.classList.add('oculta');
          document.getElementById('repaso-contexto')?.classList.add('oculta');
 }
+
+// =========================================================================
+// 11. ESCUCHADOR DE NAVEGACIÓN MÓVIL (Solución CSP)
+// =========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.btn-nav').forEach(boton => {
+        boton.addEventListener('click', function() {
+            const pantallaDestino = this.getAttribute('data-pantalla');
+            if (pantallaDestino) {
+                cambiarPantalla(pantallaDestino);
+            }
+        });
+    });
+});
