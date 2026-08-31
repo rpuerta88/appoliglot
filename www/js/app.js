@@ -65,9 +65,23 @@ async function crearTablasSiNoExisten() {
     await db_real.execute({ statements: queryCreacion });
 }
 
-window.onload = function() {
+
+// Combinamos la inicialización de la interfaz y la base de datos en un único punto seguro
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Iniciamos la base de datos local SQLite
     inicializarBaseDatos();
-};
+
+    // 2. Vinculamos los eventos de los botones de navegación
+    document.querySelectorAll('.btn-nav').forEach(boton => {
+        boton.addEventListener('click', function() {
+            const pantallaDestino = this.getAttribute('data-pantalla');
+            if (pantallaDestino) {
+                cambiarPantalla(pantallaDestino);
+            }
+        });
+    });
+});
+
 
 // =========================================================================
 // 2. MOTOR DEL ALGORITMO DE REPETICIÓN ESPACIADA (SRS SM-2)
