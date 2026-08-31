@@ -5,6 +5,7 @@ let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
 
+
 async function inicializarBaseDatos() {
     try {
         // En Android, Capacitor siempre está disponible a través de su API de Plugins
@@ -22,6 +23,7 @@ async function inicializarBaseDatos() {
         
         await crearTablasSiNoExisten();
         await poblarSelectores();
+        cambiarPantalla('pantalla-registro');
 
     } catch (error) {
         console.error("Error crítico en el SQLite de Android:", error);
@@ -322,7 +324,8 @@ async function cargarSesionRepaso() {
 
 
 // =========================================================================
-// 6. BUSCADOR DE AUTOMATIZADAS (Consulta Relacional Real)// =========================================================================
+// 6. BUSCADOR DE AUTOMATIZADAS (Consulta Relacional Real)
+// =========================================================================
        async function ejecutarBusqueda() {
        const textoBusqueda = document.getElementById('input-busqueda').value.toLowerCase().trim();
        const contenedorResultados = document.getElementById('lista-automatizadas');
