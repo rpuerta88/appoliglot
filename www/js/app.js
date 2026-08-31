@@ -23,7 +23,6 @@ async function inicializarBaseDatos() {
         
         await crearTablasSiNoExisten();
         await poblarSelectores();
-        cambiarPantalla('pantalla-registro');
 
     } catch (error) {
         console.error("Error crítico en el SQLite de Android:", error);
@@ -138,10 +137,10 @@ async function poblarSelectores() {
 
     try {
         const resIdiomas = await db_real.query({ statement: "SELECT * FROM idiomas ORDER BY nombre ASC;" });
-        const listaIdiomas = resIdiomas.values || [];
+        const listaIdiomas = (resIdiomas && resIdiomas.values) ? resIdiomas.values : [];
 
         const resCategorias = await db_real.query({ statement: "SELECT * FROM categorias ORDER BY nombre ASC;" });
-        const listaCategorias = resCategorias.values || [];
+        const listaCategorias = (resCategorias && resCategorias.values) ? resCategorias.values : [];
 
         listaIdiomas.forEach(i => {
             selectIdioma.innerHTML += `<option value="${i.id}">${i.nombre} (${i.simbolo})</option>`;
@@ -475,9 +474,10 @@ function ocultarRespuesta() {
 }
 
 // =========================================================================
-// 11. ESCUCHADOR DE NAVEGACIÓN MÓVIL (Solución CSP)
+// 11. INICIALIZADOR DE INTERFAZ Y EVENTOS MÓVILES (Garantía SPA)
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Vinculamos de inmediato los clics a los botones (Inmune a fallos de BD)
     document.querySelectorAll('.btn-nav').forEach(boton => {
         boton.addEventListener('click', function() {
             const pantallaDestino = this.getAttribute('data-pantalla');
@@ -486,4 +486,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // 2. Forzamos el renderizado visual de la primera pantalla
+    cambiarPantalla('pantalla-registro');
+
+    // 3. Conectamos la base de datos de manera aislada tras estabilizar el DOM
+    setTimeout(() => {
+        inicializarBaseDatos();
+    }, 100);
 });
+
