@@ -422,21 +422,23 @@ function escucharTermino() {
 // 10. NAVEGACIÓN SPA E INTERFAZ
 // =========================================================================
 function cambiarPantalla(idPantallaObjetivo) {
-         document.querySelectorAll('.pantalla').forEach(p => p.classList.add('oculta'));
-         document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('activo'));
-         
-         const pantallaDestino = document.getElementById(idPantallaObjetivo);
-         if (pantallaDestino) pantallaDestino.classList.remove('oculta');
-         
-         const botonActivo = Array.from(document.querySelectorAll('.btn-nav')).find(b => b.getAttribute('onclick').includes(idPantallaObjetivo));
-         if (botonActivo) botonActivo.classList.add('add', 'activo');
-         
-         // Carga de datos dinámica obligatoria al cambiar de pestaña
-         if (idPantallaObjetivo === 'pantalla-registro') poblarSelectores();
-         if (idPantallaObjetivo === 'pantalla-repaso') cargarSesionRepaso();
-         if (idPantallaObjetivo === 'pantalla-buscador') ejecutarBusqueda();
-         if (idPantallaObjetivo === 'pantalla-configuracion') actualizarEstadisticas();
-         }
+    document.querySelectorAll('.pantalla').forEach(p => p.classList.add('oculta'));
+    document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('activo'));
+
+    const pantallaDestino = document.getElementById(idPantallaObjetivo);
+    if (pantallaDestino) pantallaDestino.classList.remove('oculta');
+
+    const botonActivo = Array.from(document.querySelectorAll('.btn-nav')).find(b => b.getAttribute('onclick').includes(idPantallaObjetivo));
+    
+    // CORRECCIÓN: Dejar únicamente la clase 'activo'
+    if (botonActivo) botonActivo.classList.add('activo');
+
+    // Carga de datos dinámica obligatoria al cambiar de pestaña
+    if (idPantallaObjetivo === 'pantalla-registro') poblarSelectores();
+    if (idPantallaObjetivo === 'pantalla-repaso') cargarSesionRepaso();
+    if (idPantallaObjetivo === 'pantalla-buscador') ejecutarBusqueda();
+    if (idPantallaObjetivo === 'pantalla-configuracion') actualizarEstadisticas();
+}
          
 function mostrarRespuesta() {
          document.getElementById('tarjeta-dorso')?.classList.remove('oculta
