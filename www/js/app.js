@@ -1,5 +1,5 @@
 // =========================================================================
-// 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android) CORRGIDO 20260101
+// 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android) CORREGIDO 20260101
 // =========================================================================
 const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
@@ -25,66 +25,71 @@ async function mostrarNotificacion(mensaje) {
 
 async function inicializarBaseDatos() {
     try {
-        // 1. Acceder a los componentes modernos del módulo SQLite
-        const { CapacitorSQLite, SQLiteConnection } = Capacitor.Plugins;
-
-        if (!CapacitorSQLite) {
-            throw new Error("El plugin nativo CapacitorSQLite no está disponible en este binario.");
-        }
-
-        // 2. FUNDAMENTO: Crear la instancia del conector oficial de Capacitor 6
-        const conectorSqlite = new SQLiteConnection(CapacitorSQLite);
-
+        // 1. Acceso directo al objeto unificado del plugin en Capacitor 6
+        const SQLite = window.Capacitor.Plugins.CapacitorSQLite;
         const dbName = "mi_idioma_app";
 
-        // 3. Limpiar y verificar consistencia de hilos nativos en Android
-        const consistencia = await conectorSqlite.checkConnectionsConsistency();
-        const estaConectado = await conectorSqlite.isConnection(dbName, false);
-
-        let baseDatosNativa;
-
-        // 4. Evaluar si la conexión ya existía en el teléfono para recuperarla o crearla
-        if (consistencia.result && estaConectado.result) {
-            baseDatosNativa = await conectorSqlite.retrieveConnection(dbName, false);
-        } else {
-            baseDatosNativa = await conectorSqlite.createConnection(
-                dbName, 
-                false,            // encrypted
-                "no-encryption",  // mode
-                1,                // version
-                false             // readOnly
-            );
+        if (!SQLite) {
+            throw new Error("El componente CapacitorSQLite no está disponible en el puente global.");
         }
 
-        // 5. Abrir el archivo físico .db en el almacenamiento de Android
-        await baseDatosNativa.open();
-        console.log("✅ ¡Conexión con SQLite exitosa usando Capacitor 6!");
+        // 2. FUNDAMENTO: Verificar consistencia y estado de conexiones nativas en Android
+        const consistencia = await SQLite.checkConnectionsConsistency();
+        const estaConectado = await SQLite.isConnection({ database: dbName });
 
-        // 6. Mapear tu objeto db_real para que no tengas que alterar tus SELECT/INSERT existentes
+        // 3. Crear o recuperar la conexión física real al archivo .db de Android
+        // En la API global de Capacitor 6, los métodos reciben un objeto de configuración
+        if (consistencia.result && estaConectado.result) {
+            console.log("Reutilizando conexión existente...");
+        } else {
+            await SQLite.createConnection({
+                database: dbName,
+                version: 1,
+                encrypted: false,
+                mode: "no-encryption",
+                readOnly: false
+            });
+        }
+
+        // 4. Abrir de forma efectiva la base de datos en el almacenamiento interno
+        await SQLite.open({ database: dbName });
+        console.log("✅ ¡Conexión con SQLite exitosa en Android!");
+
+        // 5. Mapeamos tu interfaz db_real para garantizar compatibilidad con tus consultas existentes
         db_real = {
             query: async function({ statement, values }) {
-                return await baseDatosNativa.query(statement, values || []);
+                // Estructura oficial de lectura para CapacitorSQLite global
+                const res = await SQLite.query({ 
+                    database: dbName, 
+                    statement: statement, 
+                    values: values || [] 
+                });
+                return res;
             },
             execute: async function({ statement }) {
-                return await baseDatosNativa.execute(statement);
+                // Estructura oficial de escritura (INSERT, UPDATE, CREATE TABLE)
+                const res = await SQLite.execute({ 
+                    database: dbName, 
+                    statements: statement 
+                });
+                return res;
             }
         };
 
-        // 7. Lanzar los cimientos del CRUD
+        // 6. Lanzar la estructura de datos obligatoria
         await crearTablasSiNoExisten();
         await poblarSelectores();
 
-        if (typeof mostrarNotificacion === 'function') {
-            mostrarNotificacion("Base de datos enlazada con éxito", "exito");
+        // 7. Lanzamos tu Toast de éxito en color verde
+        if (typeof mostrarNotificaciones === 'function') {
+            mostrarNotificaciones("Base de datos enlazada con éxito", "exito");
         }
 
     } catch (error) {
-        console.error("Error capturado en el puente nativo:", error);
-        
-        // Tu Toast reflejará la causa exacta (si es sintaxis, permisos o parámetros)
+        console.error("Error real en la inicialización nativa:", error);
         const mensajeFinal = error.message || JSON.stringify(error);
-        if (typeof mostrarNotificacion === 'function') {
-            mostrarNotificacion(`Fallo nativo: ${mensajeFinal}`, "error");
+        if (typeof mostrarNotificaciones === 'function') {
+            mostrarNotificaciones(`Fallo nativo: ${mensajeFinal}`, "error");
         }
     }
 }
