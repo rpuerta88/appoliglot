@@ -1,52 +1,62 @@
 // =========================================================================
 // 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android) CORRGIDO 20260101
 // =========================================================================
-/*
-// Usar el conector nativo correcto de Capacitor
-const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
-let db_real = null;
-
-*/
 const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
 
-
 async function inicializarBaseDatos() {
-    /*
-    if (typeof Capacitor === 'undefined') {
-        console.warn("⚠️ Entorno Web detected");
-        // (Tu lógica de simulación en Firefox si la dejaste)
-        return;
-    }
-    */
     try {
-        // 1. Inicializar el plugin a nivel nativo en Android
-        // Esto le avisa al sistema operativo que prepare el motor SQLite
-        await SQLitePlugin.initWebStore(); 
+        // 1. Conexión directa al plugin nativo empaquetado en tu APK
+        const SQLite = Capacitor.Plugins.CapacitorSQLite;
+        const dbName = "mi_idioma_app";
 
-        // 2. Abrir o crear la base de datos de manera directa
-        // En Android, este método único abre el archivo y crea la conexión al mismo tiempo
-        db_real = await SQLitePlugin.createConnection({
-            database: "mi_idioma_app",
+        // 2. Inicializar el motor nativo de Android
+        await SQLite.initWebStore();
+
+        // 3. Crear la conexión nativa al archivo .db de Android
+        await SQLite.createConnection({
+            database: dbName,
             version: 1,
             encrypted: false,
             mode: "no-encryption"
         });
 
-        // 3. Abrir la conexión
-        await SQLitePlugin.open({ database: "mi_idioma_app" });
+        // 4. Abrir de forma efectiva la base de datos en el teléfono
+        await SQLite.open({ database: dbName });
 
-        mostrarNotificacion("✅ Base de datos inicializada correctamente en Android");
+        console.log("✅ ¡Conexión con SQLite exitosa en Android!");
+        
+        // 5. Mapeamos db_real para compatibilidad con tus funciones existentes
+        db_real = {
+            query: async function({ statement, values }) {
+                return await SQLite.query({ database: dbName, statement: statement, values: values || [] });
+            },
+            execute: async function({ statement }) {
+                return await SQLite.execute({ database: dbName, statements: [statement] });
+            }
+        };
 
-        // 4. Continuar con el ciclo de vida de tu App
+        // 6. Ejecutar la creación de tablas y llenar los selectores
         await crearTablasSiNoExisten();
         await poblarSelectores();
 
+        // Notificación opcional de éxito en segundo plano
+        if (typeof mostrarNotificaciones === 'function') {
+            mostrarNotificaciones("Base de datos lista para usar", "exito");
+        }
+
     } catch (error) {
-        console.error("Error real capturado en Android:", error);
-        mostrarNotificacion("Error al inicializar la base de datos local: " + error.message);
+        console.error("Error en el puente nativo de Android:", error);
+        
+        // 7. Integración con tu sistema de Toast nativo
+        const mensajeError = error.message || JSON.stringify(error);
+        if (typeof mostrarNotificaciones === 'function') {
+            mostrarNotificaciones(`Fallo en base de datos: ${mensajeError}`, "error");
+        } else {
+            console.error("La función mostrarNotificaciones no está disponible globalmente.");
+        }
     }
 }
 
