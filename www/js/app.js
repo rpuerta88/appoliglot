@@ -5,11 +5,28 @@ const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
+// Función auxiliar global para mostrar notificaciones nativas en Android
+async function mostrarNotificacion(mensaje) {
+    try {
+        const { Toast } = Capacitor.Plugins;
+        if (Toast) {
+            await Toast.show({
+                text: mensaje,
+                duration: 'short',
+                position: 'bottom'
+            });
+        } else {
+            console.log("Toast no disponible:", mensaje);
+        }
+    } catch (e) {
+        console.error("Error al mostrar Toast:", e);
+    }
+}
 
 async function inicializarBaseDatos() {
     try {
         // 1. Acceder a los componentes modernos del módulo SQLite
-        const { CapacitorSQLite, SQLiteConnection } = window.Capacitor.Plugins;
+        const { CapacitorSQLite, SQLiteConnection } = Capacitor.Plugins;
 
         if (!CapacitorSQLite) {
             throw new Error("El plugin nativo CapacitorSQLite no está disponible en este binario.");
@@ -57,8 +74,8 @@ async function inicializarBaseDatos() {
         await crearTablasSiNoExisten();
         await poblarSelectores();
 
-        if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones("Base de datos enlazada con éxito", "exito");
+        if (typeof mostrarNotificacion === 'function') {
+            mostrarNotificacion("Base de datos enlazada con éxito", "exito");
         }
 
     } catch (error) {
@@ -66,29 +83,12 @@ async function inicializarBaseDatos() {
         
         // Tu Toast reflejará la causa exacta (si es sintaxis, permisos o parámetros)
         const mensajeFinal = error.message || JSON.stringify(error);
-        if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones(`Fallo nativo: ${mensajeFinal}`, "error");
+        if (typeof mostrarNotificacion === 'function') {
+            mostrarNotificacion(`Fallo nativo: ${mensajeFinal}`, "error");
         }
     }
 }
 
-// Función auxiliar global para mostrar notificaciones nativas en Android
-async function mostrarNotificacion(mensaje) {
-    try {
-        const { Toast } = Capacitor.Plugins;
-        if (Toast) {
-            await Toast.show({
-                text: mensaje,
-                duration: 'short',
-                position: 'bottom'
-            });
-        } else {
-            console.log("Toast no disponible:", mensaje);
-        }
-    } catch (e) {
-        console.error("Error al mostrar Toast:", e);
-    }
-}
 
 
 async function crearTablasSiNoExisten() {
