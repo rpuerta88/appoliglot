@@ -175,3 +175,65 @@ input, select, textarea {
 .btn-herramienta:active {
     opacity: 0.8;
 }
+.tarjeta-resultado {
+    background: white; 
+    padding: 12px; 
+    margin-top: 10px; 
+    border-radius: 8px; 
+    border-left: 5px solid #4caf50; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+}
+.info-resultado {
+    flex: 1;
+    padding-right: 10px;
+}
+.termino-resultado {
+    font-size: 1.1rem;
+    color: #333;
+}
+.contexto-resultado {
+    color: #888;
+    font-style: italic;
+}
+.etiqueta-resultado {
+    font-size: 0.75rem;
+    background: #e0e0e0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 5px;
+    font-weight: bold;
+}
+.btn-editar-item {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-right: 5px;
+}
+.btn-eliminar-item {
+    background: #f44336;
+    color: white; border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.busqueda-vacia {
+    color: #666;
+    text-align: center;
+    margin-top: 20px;
+    font-style: italic;
+}
+
+
+
+

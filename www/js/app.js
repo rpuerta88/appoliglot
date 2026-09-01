@@ -1,14 +1,31 @@
 // =========================================================================
-// 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android)
+// 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android) CORRGIDO 20260101
 // =========================================================================
+
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
 
+// Función auxiliar global para mostrar notificaciones nativas en Android
+async function mostrarNotificacion(mensaje) {
+    try {
+        const { Toast } = Capacitor.Plugins;
+        if (Toast) {
+            await Toast.show({
+                text: mensaje,
+                duration: 'short',
+                position: 'bottom'
+            });
+        } else {
+            console.log("Toast no disponible:", mensaje);
+        }
+    } catch (e) {
+        console.error("Error al mostrar Toast:", e);
+    }
+}
 
 async function inicializarBaseDatos() {
     try {
-        // En Android, Capacitor siempre está disponible a través de su API de Plugins
         const { CapacitorSQLite } = Capacitor.Plugins;
         
         db_real = await CapacitorSQLite.createConnection({
@@ -19,59 +36,85 @@ async function inicializarBaseDatos() {
         });
 
         await db_real.open();
-        console.log("📱 ¡Conexión física a SQLite Nativo en Android establecida!");
+        
+        // Optimización: Usamos tu nueva función global directamente
+        await mostrarNotificacion("📱 ¡Conexión física a SQLite establecida!");
         
         await crearTablasSiNoExisten();
         await poblarSelectores();
 
     } catch (error) {
         console.error("Error crítico en el SQLite de Android:", error);
-        alert("Error al inicializar la base de datos local.");
+        await mostrarNotificacion("❌ Error al inicializar la base de datos local.");
     }
 }
 
 async function crearTablasSiNoExisten() {
-    const queryCreacion = `
-        CREATE TABLE IF NOT EXISTS idiomas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            nombre TEXT NOT NULL, 
-            simbolo TEXT NOT NULL UNIQUE
-        );
-        CREATE TABLE IF NOT EXISTS categorias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            nombre TEXT NOT NULL UNIQUE
-        );
-        CREATE TABLE IF NOT EXISTS elementos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            idioma_id INTEGER NOT NULL, 
-            categoria_id INTEGER NOT NULL,
-            termino TEXT NOT NULL,
-            fonetica TEXT NOT NULL, 
-            traduccion TEXT NOT NULL, 
-            contexto TEXT, 
-            vistas INTEGER DEFAULT 0,
-            tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, 
-            creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
-            estado TEXT DEFAULT 'aprendizaje', 
-            intervalo INTEGER DEFAULT 0, 
-            factor_facilidad REAL DEFAULT 2.5,
-            repeticiones INTEGER DEFAULT 0, 
-            proximo_repaso TEXT,
-            FOREIGN KEY (idioma_id) REFERENCES idiomas(id), 
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-        );
-    `;
-    await db_real.execute({ statements: queryCreacion });
-}
+    try {
+        // MEJORA 1: Activamos OBLIGATORIAMENTE el soporte de claves foráneas
+        await db_real.execute({ statements: "PRAGMA foreign_keys = ON;" });
 
+        // MEJORA 2: Separamos los statements en un arreglo limpio. 
+        // Capacitor requiere que cada sentencia de creación sea un elemento independiente.
+        const queries = [
+            `CREATE TABLE IF NOT EXISTS idiomas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                nombre TEXT NOT NULL, 
+                simbolo TEXT NOT NULL UNIQUE
+            );`,
+            
+            `CREATE TABLE IF NOT EXISTS categorias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                nombre TEXT NOT NULL UNIQUE
+            );`,
+            
+            `CREATE TABLE IF NOT EXISTS elementos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                idioma_id INTEGER NOT NULL, 
+                categoria_id INTEGER NOT NULL,
+                termino TEXT NOT NULL,
+                fonetica TEXT NOT NULL, 
+                traduccion TEXT NOT NULL, 
+                contexto TEXT, 
+                vistas INTEGER DEFAULT 0,
+                tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, 
+                creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+                estado TEXT DEFAULT 'aprendizaje', 
+                intervalo INTEGER DEFAULT 0, 
+                factor_facilidad REAL DEFAULT 2.5,
+                repeticiones INTEGER DEFAULT 0, 
+                proximo_repaso TEXT,
+                FOREIGN KEY (idioma_id) REFERENCES idiomas(id) ON DELETE CASCADE, 
+                FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE
+            );`,
+
+            // MEJORA 3: Creamos índices para que las búsquedas y filtrados sean instantáneos
+            `CREATE INDEX IF NOT EXISTS idx_elementos_idioma ON elementos(idioma_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_elementos_categoria ON elementos(categoria_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_elementos_repaso ON elementos(proximo_repaso);`
+        ];
+
+        // Ejecutamos el arreglo completo de sentencias de forma secuencial y segura
+        for (const statement of queries) {
+            await db_real.execute({ statements: statement });
+        }
+        
+        console.log("📐 Estructura de base de datos e índices validados con éxito.");
+    } catch (error) {
+        console.error("Error al estructurar las tablas de SQLite:", error);
+        await mostrarNotificacion("❌ Error al configurar las tablas internas.");
+    }
+}
 
 // Combinamos la inicialización de la interfaz y la base de datos en un único punto seguro
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Iniciamos la base de datos local SQLite
     inicializarBaseDatos();
 
-    // 2. Vinculamos los eventos de los botones de navegación
-    document.querySelectorAll('.btn-nav').forEach(boton => {
+    // 2. Vinculamos los eventos de los botones de navegación (Optimizado para evitar re-búsquedas)
+    const botonesNav = document.querySelectorAll('.btn-nav');
+    
+    botonesNav.forEach(boton => {
         boton.addEventListener('click', function() {
             const pantallaDestino = this.getAttribute('data-pantalla');
             if (pantallaDestino) {
@@ -83,40 +126,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // =========================================================================
-// 2. MOTOR DEL ALGORITMO DE REPETICIÓN ESPACIADA (SRS SM-2)
+// 2. MOTOR DEL ALGORITMO DE REPETICIÓN ESPACIADA (SRS SM-2) CORREGIDO 20260901
 // =========================================================================
 function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repeticionesActuales) {
+    // Escala asumida de calificación (1: Olvidado por completo, 2: Difícil, 3: Bien/Correcto, 4: Muy Fácil)
     let nuevoIntervalo = 0;
     let nuevoFactor = factorFacilidadActual;
     let nuevasRepeticiones = repeticionesActuales;
     let nuevoEstado = "aprendizaje";
 
     if (calificacion === 1) {
+        // REINICIO: Si olvidó la palabra, vuelve a empezar el ciclo
         nuevasRepeticiones = 0;
         nuevoIntervalo = 1;
+        // Penalizamos ligeramente el factor de facilidad por haberla olvidado (Matemática segura)
+        nuevoFactor = Math.max(1.3, Number((factorFacilidadActual - 0.20).toFixed(2)));
     } else {
         nuevasRepeticiones++;
-        if (nuevasRepeticiones === 1) nuevoIntervalo = 1;
-        else if (nuevasRepeticiones === 2) nuevoIntervalo = 3;
-        else nuevoIntervalo = Math.round(intervaloActual * factorFacilidadActual);
+        
+        // Determinación del nuevo intervalo de días
+        if (nuevasRepeticiones === 1) {
+            nuevoIntervalo = 1;
+        } else if (nuevasRepeticiones === 2) {
+            nuevoIntervalo = 3; // Puedes usar 4 o 6 días según prefieras el ritmo
+        } else {
+            nuevoIntervalo = Math.round(intervaloActual * factorFacilidadActual);
+        }
 
-        if (calificacion === 2) nuevoFactor -= 0.15;
-        if (calificacion === 4) nuevoFactor += 0.15;
+        // AJUSTE DEL FACTOR (Implementación SM2 Limpia y segura contra flotantes)
+        if (calificacion === 2) {
+            nuevoFactor = Number((factorFacilidadActual - 0.15).toFixed(2));
+        } else if (calificacion === 3) {
+            nuevoFactor = factorFacilidadActual; // Mantiene el factor actual (Acierto normal)
+        } else if (calificacion === 4) {
+            nuevoFactor = Number((factorFacilidadActual + 0.15).toFixed(2));
+        }
     }
 
+    // Límite inferior recomendado por SuperMemo para evitar el "infierno de bajas frecuencias"
     if (nuevoFactor < 1.3) nuevoFactor = 1.3;
 
+    // DETERMINACIÓN DEL ESTADO DE LA TARJETA
     if (nuevoIntervalo >= 90) {
         nuevoEstado = "automatizada";
+    } else if (nuevasRepeticiones > 2) {
+        nuevoEstado = "repaso"; // Estado intermedio para mejor organización estadística
     }
 
+    // CÁLCULO DE FECHA (Evitando desfases de zona horaria del sistema de forma limpia)
     const fecha = new Date();
     fecha.setDate(fecha.getDate() + nuevoIntervalo);
-    const proximoRepaso = fecha.toISOString().split('T')[0];
+    
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const proximoRepaso = `${anio}-${mes}-${dia}`;
 
     return {
         intervalo: nuevoIntervalo,
-        factor_facilidad: parseFloat(nuevoFactor.toFixed(2)),
+        factor_facilidad: nuevoFactor,
         repeticiones: nuevasRepeticiones,
         estado: nuevoEstado,
         proximo_repaso: proximoRepaso
@@ -124,40 +192,50 @@ function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repet
 }
 
 // =========================================================================
-// 3. FUNCIÓN DE LECTURA (Selectores desde SQLite Real)
+// 3. FUNCIÓN DE LECTURA (Selectores desde SQLite Real) CORREGIDO 20260901
 // =========================================================================
+
 async function poblarSelectores() {
-    const selectIdioma = document.getElementById('reg-idioma');
-    const selectCategoria = document.getElementById('reg-categoria');
-
-    if (!selectIdioma || !selectCategoria || !db_real) return;
-
-    selectIdioma.innerHTML = '<option value="">Selecciona un idioma...</option>';
-    selectCategoria.innerHTML = '<option value="">Selecciona una categoría...</option>';
+    // MEJORA: Reutilizamos las referencias globales del DOM que cacheamos al inicio del script
+    // (Asegúrate de que 'regIdioma' y 'regCategoria' estén declaradas arriba en el script global)
+    if (!regIdioma || !regCategoria) return;
+    
+    // Si por alguna razón la base de datos se desconectara, evitamos que la app rompa
+    if (!db_real) {
+        console.warn("Intento de poblar selectores sin una conexión activa a SQLite.");
+        return;
+    }
 
     try {
-        const resIdiomas = await db_real.query({ statement: "SELECT * FROM idiomas ORDER BY nombre ASC;" });
-        const listaIdiomas = (resIdiomas && resIdiomas.values) ? resIdiomas.values : [];
+        // Lanzamos ambas consultas SQL en paralelo al puente nativo de Android
+        const [resIdiomas, resCategorias] = await Promise.all([
+            db_real.query({ statement: "SELECT id, nombre, simbolo FROM idiomas ORDER BY nombre ASC;" }),
+            db_real.query({ statement: "SELECT id, nombre FROM categorias ORDER BY nombre ASC;" })
+        ]);
 
-        const resCategorias = await db_real.query({ statement: "SELECT * FROM categorias ORDER BY nombre ASC;" });
-        const listaCategorias = (resCategorias && resCategorias.values) ? resCategorias.values : [];
+        const listaIdiomas = resIdiomas?.values || [];
+        const listaCategorias = resCategorias?.values || [];
 
-        listaIdiomas.forEach(i => {
-            selectIdioma.innerHTML += `<option value="${i.id}">${i.nombre} (${i.simbolo})</option>`;
-        });
+        // Inyección masiva y limpia de un solo golpe al DOM
+        regIdioma.innerHTML = [
+            '<option value="">Selecciona un idioma...</option>',
+            ...listaIdiomas.map(i => `<option value="${i.id}">${i.nombre} (${i.simbolo})</option>`)
+        ].join('');
 
-        listaCategorias.forEach(c => {
-            selectCategoria.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-        });
+        regCategoria.innerHTML = [
+            '<option value="">Selecciona una categoría...</option>',
+            ...listaCategorias.map(c => `<option value="${c.id}">${c.nombre}</option>`)
+        ].join('');
         
-        console.log("¡Selectores actualizados desde SQLite móvil!");
+        console.log("📐 Selectores de la interfaz sincronizados con SQLite.");
     } catch (error) {
         console.error("Error al leer datos nativos para los selectores:", error);
+        await mostrarNotificacion("❌ Error al cargar las listas de idiomas y categorías.");
     }
 }
 
 // =========================================================================
-// 4. CAPA DE NEGOCIO Y FORMULARIOS (Inserciones y Actualizaciones en SQLite)
+// 4. CAPA DE NEGOCIO Y FORMULARIOS (Inserciones y Actualizaciones en SQLite) CORREGIDO 2026-09-01
 // =========================================================================
 
 // Registrar nuevo Idioma desde Ajustes
@@ -277,208 +355,388 @@ function limpiarModoEdicion() {
     document.getElementById('formulario-registro').reset();
 }
 //=========================================================================
-// 5. SESIÓN DE REPASO INTERACTIVA//
+// 5. SESIÓN DE REPASO INTERACTIVA// CORREGIDA 2026-09-01
 //=========================================================================
 async function cargarSesionRepaso() {
-      ocultarRespuesta();
-      if (!db_real) return;
+    ocultarRespuesta();
+    if (!db_real) return;
 
-      const hoy = new Date().toISOString().split('T')[0];
-      let pendientes = [];
-      
-      try {
-          const sqlQuery = SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre  FROM elementos e JOIN idiomas i ON e.idioma_id = i.id JOIN categorias c ON e.categoria_id = c.id WHERE e.proximo_repaso <= ? AND e.estado = 'aprendizaje' ORDER BY e.id ASC;;const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });pendientes = resultado.values || [];
-          } catch (error) {
-          console.error("Error al cargar repasos desde SQLite:", error);
-          }
-       const lblTipo = document.getElementById('repaso-tipo');const txtOrigen = document.getElementById('repaso-origen');const txtContexto = document.getElementById('repaso-contexto');const txtDestino = document.getElementById('repaso-destino');const btnMostrar = document.getElementById('btn-mostrar-respuesta');
-       
-       if (pendientes.length === 0) {if (lblTipo) lblTipo.innerText = "-";if (txtOrigen) txtOrigen.innerText = "¡Estás al día! No hay tarjetas pendientes para repasar hoy.";if (txtContexto) txtContexto.innerText = "";if (btnMostrar) btnMostrar.style.display = 'none';tarjetaActual = null;return;
-       }
-       
-       if (btnMostrar) btnMostrar.style.display = 'block';
-       const registro = pendientes[0];
-       
-       tarjetaActual = {id: registro.id,idioma_id: registro.idioma_id,categoria_id: registro.categoria_id,tipo: registro.tipo,termino: registro.termino,fonetica: registro.fonetica,traduccion: registro.traduccion,contexto: registro.contexto,vistas: (registro.vistas || 0) + 1,intervalo: registro.intervalo || 0,factor_facilidad: registro.factor_facilidad || 2.5,repeticiones: registro.repeticiones || 0,idioma_nombre: registro.idioma_nombre,idioma_simbolo: registro.idioma_simbolo,categoria_nombre: registro.categoria_nombre
-       };
-       
-       if (lblTipo) lblTipo.innerText = ${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre};if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;if (txtContexto) txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";if (txtDestino) txtDestino.innerText = tarjetaActual.traduccion;}
-       
-       async function calificarTarjeta(calificacion) {
-       if (!tarjetaActual || !db_real) return;
-       
-       const srs = calcularSRS(calificacion, tarjetaActual.intervalo, tarjetaActual.factor_facilidad, tarjetaActual.repeticiones);
-       
-       try {await db_real.run({statement: "UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;",values: [srs.intervalo, srs.factor_facilidad, srs.repeticiones, srs.estado, srs.proximo_repaso, tarjetaActual.vistas, tarjetaActual.id]
-       });
-       
-       if (srs.estado === 'automatizada') {
-       let automatizadas = JSON.parse(localStorage.getItem('palabras_automatizadas')) || [];
-       if (!automatizadas.some(item => item.id === tarjetaActual.id)) {
-       automatizadas.push({
-       id: tarjetaActual.id,
-       termino: tarjetaActual.termino,
-       fonetica: tarjetaActual.fonetica,
-       traduccion: tarjetaActual.traduccion,
-       contexto: tarjetaActual.contexto,
-       idioma: tarjetaActual.idioma_nombre,
-       categoria: tarjetaActual.categoria_nombre
-       });
-       localStorage.setItem('palabras_automatizadas', JSON.stringify(automatizadas));
-       }
-       alert(¡Espectacular! Se logró la automatización de este término.);
-       }
-       } catch (error) {
-       console.error("Error al actualizar la tarjeta en SQLite:", error);
-       }
-       
-       await cargarSesionRepaso();
-       }
+    // Ajuste de fecha local segura (tal como optimizamos en el algoritmo anterior)
+    const fecha = new Date();
+    const hoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+    let pendientes = [];
+    
+    try {
+        // CORRECCIÓN 1: Filtramos tanto por 'aprendizaje' como por 'repaso' usando IN
+        const sqlQuery = `
+            SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre  
+            FROM elementos e 
+            JOIN idiomas i ON e.idioma_id = i.id 
+            JOIN categorias c ON e.categoria_id = c.id 
+            WHERE e.proximo_repaso <= ? AND e.estado IN ('aprendizaje', 'repaso') 
+            ORDER BY e.id ASC;
+        `;
+        const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });
+        pendientes = resultado.values || [];
+    } catch (error) {
+        console.error("Error al cargar repasos desde SQLite:", error);
+    }
+
+    const lblTipo = document.getElementById('repaso-tipo');
+    const txtOrigen = document.getElementById('repaso-origen');
+    const txtContexto = document.getElementById('repaso-contexto');
+    const txtDestino = document.getElementById('repaso-destino');
+    const btnMostrar = document.getElementById('btn-mostrar-respuesta');
+    
+    if (pendientes.length === 0) {
+        if (lblTipo) lblTipo.innerText = "-";
+        if (txtOrigen) txtOrigen.innerText = "¡Estás al día! No hay tarjetas pendientes para repasar hoy.";
+        if (txtContexto) txtContexto.innerText = "";
+        if (btnMostrar) btnMostrar.style.display = 'none';
+        tarjetaActual = null;
+        return;
+    }
+    
+    if (btnMostrar) btnMostrar.style.display = 'block';
+    const registro = pendientes[0];
+    
+    // Mapeo seguro del objeto actual
+    tarjetaActual = {
+        id: registro.id,
+        idioma_id: registro.idioma_id,
+        categoria_id: registro.categoria_id,
+        tipo: registro.tipo,
+        termino: registro.termino,
+        fonetica: registro.fonetica,
+        traduccion: registro.traduccion,
+        contexto: registro.contexto,
+        vistas: (registro.vistas || 0) + 1,
+        intervalo: registro.intervalo || 0,
+        factor_facilidad: registro.factor_facilidad || 2.5,
+        repeticiones: registro.repeticiones || 0,
+        idioma_nombre: registro.idioma_nombre,
+        idioma_simbolo: registro.idioma_simbolo,
+        categoria_nombre: registro.categoria_nombre
+    };
+    
+    // CORRECCIÓN 2: Unión limpia del texto usando un único Template Literal con barras separadoras
+    if (lblTipo) {
+        lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
+    }
+    if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
+    if (txtContexto) txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";
+    if (txtDestino) txtDestino.innerText = tarjetaActual.traduccion;
+}
+    
+async function calificarTarjeta(calificacion) {
+    if (!tarjetaActual || !db_real) return;
+    
+    const srs = calcularSRS(calificacion, tarjetaActual.intervalo, tarjetaActual.factor_facilidad, tarjetaActual.repeticiones);
+    
+    try {
+        // Guardamos todos los datos optimizados directamente en SQLite Nativo
+        await db_real.run({
+            statement: "UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;",
+            values: [srs.intervalo, srs.factor_facilidad, srs.repeticiones, srs.estado, srs.proximo_repaso, tarjetaActual.vistas, tarjetaActual.id]
+        });
+        
+        // CORRECCIÓN 3: Eliminamos el uso innecesario de localStorage
+        if (srs.estado === 'automatizada') {
+            await mostrarNotificacion(`¡Espectacular! Se logró la automatización de: "${tarjetaActual.termino}".`);
+        } else {
+            await mostrarNotificacion("Calificación registrada con éxito.");
+        }
+    } catch (error) {
+        console.error("Error al actualizar la tarjeta en SQLite:", error);
+        await mostrarNotificacion("❌ Error al guardar la calificación.");
+    }
+    
+    // Saltamos automáticamente a la siguiente tarjeta pendiente
+    await cargarSesionRepaso();
+}
 
 
 // =========================================================================
-// 6. BUSCADOR DE AUTOMATIZADAS (Consulta Relacional Real)
+// 6. BUSCADOR DE AUTOMATIZADAS (Consulta Relacional Real) CORREGIDO 20260901
 // =========================================================================
-       async function ejecutarBusqueda() {
-       const textoBusqueda = document.getElementById('input-busqueda').value.toLowerCase().trim();
-       const contenedorResultados = document.getElementById('lista-automatizadas');
-       
-       if (!contenedorResultados || !db_real) return;
-       contenedorResultados.innerHTML = "";
-       
-       try {
-       const sqlQuery = SELECT e.*, i.nombre AS idioma_nombre, c.nombre AS categoria_nombre  FROM elementos e JOIN idiomas i ON e.idioma_id = i.id JOIN categorias c ON e.categoria_id = c.id WHERE e.estado = 'automatizada' AND (e.termino LIKE ? OR e.traduccion LIKE ? OR e.contexto LIKE ?) ORDER BY e.termino ASC;;
-       const patron = %${textoBusqueda}%;
-       const resultado = await db_real.query({ statement: sqlQuery, values: [patron, patron, patron] });
-       const filtradas = resultado.values || [];
-       
-       if (filtradas.length === 0) {
-       contenedorResultados.innerHTML = "No hay coincidencias en tu baúl automatizado.";
-       return;
-       }
-       
-       filtradas.forEach(item => {contenedorResultados.innerHTML += <div style="background: white; padding: 12px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #4caf50; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;"> <div style="flex: 1; padding-right: 10px;"> <strong style="font-size: 1.1rem; color: #333;">${item.termino}</strong> <span>➔ ${item.traduccion}</span> <br> <small style="color: #888; font-style: italic;">${item.contexto || 'Sin contexto'}</small> <br> <span style="font-size: 0.75rem; background: #e0e0e0; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; font-weight: bold;">${item.idioma_nombre} | ${item.categoria_nombre}</span> </div> <div> <button class="btn-editar-item" data-id="${item.id}" style="background: #ff9800; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; margin-right: 5px;">✏</button> <button class="btn-eliminar-item" data-id="${item.id}" style="background: #f44336; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">🗑</button> </div> </div>;});
-       
-       document.querySelectorAll('.btn-editar-item').forEach(boton => {
-       boton.addEventListener('click', function() {
-       const idBuscar = parseInt(this.getAttribute('data-id'));
-       const el = filtradas.find(e => e.id === idBuscar);
-       if (el) prepararEdicion(el);
-       });
-       });
-       
-       document.querySelectorAll('.btn-eliminar-item').forEach(boton => {
-       boton.addEventListener('click', function() {
-       eliminarElemento(parseInt(this.getAttribute('data-id')));
-       });
-       });
-       
-       } catch (error) {
-       console.error("Error al buscar automatizadas en SQLite:", error);
-       }
-       }
+async function ejecutarBusqueda() {
+    const textoBusqueda = document.getElementById('input-busqueda').value.toLowerCase().trim();
+    const contenedorResultados = document.getElementById('lista-automatizadas');
+    
+    if (!contenedorResultados || !db_real) return;
+
+    // Inicializamos una variable para almacenar los datos de la consulta actual
+    // Esto nos permitirá encontrarlos rápidamente al hacer clic en "Editar"
+    if (!window.cacheBusquedaActual) window.cacheBusquedaActual = [];
+
+    try {
+        const sqlQuery = `
+            SELECT e.*, i.nombre AS idioma_nombre, c.nombre AS categoria_nombre  
+            FROM elementos e 
+            JOIN idiomas i ON e.idioma_id = i.id 
+            JOIN categorias c ON e.categoria_id = c.id 
+            WHERE e.estado = 'automatizada' 
+              AND (e.termino LIKE ? OR e.traduccion LIKE ? OR e.contexto LIKE ?) 
+            ORDER BY e.termino ASC;
+        `;
+        const patron = `%${textoBusqueda}%`;
+        const resultado = await db_real.query({ statement: sqlQuery, values: [patron, patron, patron] });
+        
+        window.cacheBusquedaActual = resultado.values || [];
+
+        if (window.cacheBusquedaActual.length === 0) {
+            contenedorResultados.innerHTML = '<p class="busqueda-vacia">No hay coincidencias en tu baúl automatizado.</p>';
+            return;
+        }
+
+        // MEJORA 1: Creamos todo el HTML en memoria de un solo golpe (Cero lag en la Canaimita)
+        // RECOMENDACIÓN: Traslada los estilos inline de aquí a tu archivo CSS usando las clases indicadas
+        contenedorResultados.innerHTML = window.cacheBusquedaActual.map(item => `
+            <div class="tarjeta-resultado">
+                <div class="info-resultado">
+                    <strong class="termino-resultado">${item.termino}</strong> 
+                    <span class="traduccion-resultado"> - ${item.traduccion}</span>
+                    <br>
+                    <small class="contexto-resultado">${item.contexto || "Sin contexto adicional registrado"}</small>
+                    <br>
+                    <span class="etiqueta-resultado">${item.idioma_nombre} | ${item.categoria_nombre}</span>
+                </div>
+                <div class="acciones-resultado">
+                    <button class="btn-editar-item" data-id="${item.id}">✏️</button>
+                    <button class="btn-eliminar-item" data-id="${item.id}">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+
+        // MEJORA 2: Delegación de Eventos Única (Elimina por completo las fugas de memoria)
+        // Configuramos el contenedor para escuchar los clics una sola vez, si no se ha hecho antes
+        if (!contenedorResultados.dataset.listenerActivo) {
+            contenedorResultados.addEventListener('click', function(e) {
+                // Buscamos si el clic ocurrió en el botón de editar o eliminar
+                const btnEditar = e.target.closest('.btn-editar-item');
+                const btnEliminar = e.target.closest('.btn-eliminar-item');
+
+                if (btnEditar) {
+                    const idBuscar = parseInt(btnEditar.getAttribute('data-id'), 10);
+                    const el = window.cacheBusquedaActual.find(item => item.id === idBuscar);
+                    if (el) prepararEdicion(el);
+                }
+
+                if (btnEliminar) {
+                    const idEliminar = parseInt(btnEliminar.getAttribute('data-id'), 10);
+                    // Llama a tu función de eliminación nativa
+                    eliminarElemento(idEliminar); 
+                }
+            });
+            // Marcamos el contenedor para no duplicar este escuchador en el futuro
+            contenedorResultados.dataset.listenerActivo = "true";
+        }
+
+    } catch (error) {
+        console.error("Error al buscar automatizadas en SQLite:", error);
+        await mostrarNotificacion("❌ Error al procesar la búsqueda.");
+    }
+}
+
        
 // =========================================================================
-// 7. ELIMINACIÓN REAL (DELETE en SQLite)
+// 7. ELIMINACIÓN REAL (DELETE en SQLite) CORREGIDA 20260901
 // =========================================================================
 async function eliminarElemento(idEliminar) {
-      if (!db_real) return;
-      const confirmar = confirm("¿Estás seguro de que deseas eliminar este término por completo?");
-      if (!confirmar) return; 
-      
-      try {
-      await db_real.run({ statement: "DELETE FROM elementos WHERE id = ?;", values: [idEliminar] });
-      alert("Término eliminado de forma permanente.");
-      await ejecutarBusqueda();
-      await actualizarEstadisticas();
-      } catch (error) {
-      console.error("Error al eliminar en SQLite:", error);
-      }
-      }
-      
+    if (!db_real) return;
+
+    try {
+        // Extraemos Dialog directamente del objeto global de Capacitor
+        const { Dialog } = Capacitor.Plugins;
+
+        // MEJORA 1: Confirmación nativa de Android (No bloquea el hilo de la app)
+        if (Dialog) {
+            const resultadoConfirmacion = await Dialog.confirm({
+                title: 'Confirmar eliminación',
+                message: '¿Estás seguro de que deseas eliminar este término por completo?',
+                okButtonTitle: 'Eliminar',
+                cancelButtonTitle: 'Cancelar'
+            });
+
+            // Si el usuario presiona "Cancelar", detenemos la ejecución inmediatamente
+            if (!resultadoConfirmacion.value) return;
+        } else {
+            // Respaldo clásico si pruebas el flujo en el navegador de la Canaimita
+            const confirmarWeb = confirm("¿Estás seguro de que deseas eliminar este término?");
+            if (!confirmarWeb) return;
+        }
+
+        // MEJORA 2: Ejecución del borrado en SQLite
+        await db_real.run({ 
+            statement: "DELETE FROM elementos WHERE id = ?;", 
+            values: [idEliminar] 
+        });
+
+        // MEJORA 3: Reemplazo de alert() por tu función optimizada de Toast nativo
+        await mostrarNotificacion("🗑️ Término eliminado de forma permanente.");
+        
+        // Actualizamos la interfaz gráfica de forma asíncrona y paralela
+        await Promise.all([
+            ejecutarBusqueda(),
+            actualizarEstadisticas()
+        ]);
+
+    } catch (error) {
+        console.error("Error al eliminar en SQLite:", error);
+        await mostrarNotificacion("❌ Error al intentar eliminar el elemento.");
+    }
+}
 // =========================================================================
-// 8. INDICADORES DE PROGRESO (Estadísticas Reales)
+// 8. INDICADORES DE PROGRESO (Estadísticas Reales) CORREGIDO 20260901
 // =========================================================================
 async function actualizarEstadisticas() {
-      const txtAprendizaje = document.getElementById('est-aprendizaje');const txtAutomatizadas = document.getElementById('est-automatizadas');if (!txtAprendizaje || !txtAutomatizadas || !db_real) return;
-      
-      try {
-      const resAp = await db_real.query({ statement: "SELECT COUNT(*) AS total FROM elementos WHERE estado = 'aprendizaje';" });
-      const totalAp = resAp.values[0]?.total || 0;
-      
-      const resAu = await db_real.query({ statement: "SELECT COUNT(*) AS total FROM elementos WHERE estado = 'automatizada';" });
-      const totalAu = resAu.values[0]?.total || 0;
-      
-      txtAprendizaje.innerText = totalAp;
-      txtAutomatizadas.innerText = totalAu;
-      } catch (error) {
-      console.error("Error al calcular estadísticas en SQLite:", error);
-      }
-      }
+    const txtAprendizaje = document.getElementById('est-aprendizaje');
+    const txtAutomatizadas = document.getElementById('est-automatizadas');
+    
+    if (!txtAprendizaje || !txtAutomatizadas || !db_real) return;
+    
+    try {
+        // MEJORA 1: Una única consulta SQL que clasifica y cuenta todo de un solo viaje
+        const sqlQuery = `
+            SELECT 
+                COUNT(CASE WHEN estado IN ('aprendizaje', 'repaso') THEN 1 END) AS total_estudio,
+                COUNT(CASE WHEN estado = 'automatizada' THEN 1 END) AS total_auto
+            FROM elementos;
+        `;
+        
+        const resultado = await db_real.query({ statement: sqlQuery });
+        const metricas = resultado.values?.[0] || { total_estudio: 0, total_auto: 0 };
+        
+        // MEJORA 2: Inyección directa en la interfaz gráfica
+        txtAprendizaje.innerText = metricas.total_estudio;
+        txtAutomatizadas.innerText = metricas.total_auto;
+        
+        console.log("📊 Estadísticas del vocabulario actualizadas en tiempo real.");
+    } catch (error) {
+        console.error("Error al calcular estadísticas en SQLite:", error);
+    }
+}
       
 // =========================================================================
-// 9. HERRAMIENTAS ADICIONALES (TTS de Audio Nativo)
+// 9. HERRAMIENTAS ADICIONALES (TTS de Audio Nativo) CORREGIDA 20260901
 // =========================================================================
-function escucharTermino() {
-       if (!tarjetaActual || !tarjetaActual.termino) return;    
+
+// --- 1. REPRODUCCIÓN DE VOZ (TEXT-TO-SPEECH AUTOMATIZADO) ---
+async function escucharTermino() {
+    if (!tarjetaActual || !tarjetaActual.termino) return;    
+    
+    try {
+        // Intentamos usar el motor nativo de Capacitor (Mucho más estable en Android)
+        const { TextToSpeech } = Capacitor.Plugins;
+
+        if (TextToSpeech) {
+            await TextToSpeech.speak({
+                text: tarjetaActual.termino,
+                lang: tarjetaActual.idioma_simbolo || 'en-US', // Formato estándar ISO (ej: 'en-US', 'es-ES')
+                rate: 0.9, // Velocidad de reproducción ligeramente pausada para aprendizaje
+                pitch: 1.0,
+                volume: 1.0,
+                category: 'ambient'
+            });
+        } else if ('speechSynthesis' in window) {
+            // Respaldo para cuando pruebas la app en el navegador de la Canaimita
+            window.speechSynthesis.cancel();
+            const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
+            enunciado.lang = tarjetaActual.idioma_simbolo || 'en';
+            enunciado.rate = 0.9;
+            window.speechSynthesis.speak(enunciado);
+        } else {
+            await mostrarNotificacion("🔊 Tu dispositivo no soporta la reproducción de audio.");
+        }
+    } catch (error) {
+        console.error("Error en el motor de voz (TTS):", error);
+        // Respaldo de seguridad si el plugin nativo falla en la inicialización
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
+            enunciado.lang = tarjetaActual.idioma_simbolo || 'en';
+            window.speechSynthesis.speak(enunciado);
+        }
+    }
+}
        
-       if ('speechSynthesis' in window) {
-       window.speechSynthesis.cancel();
-       const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
-       enunciado.lang = tarjetaActual.idioma_simbolo || 'en';
-       enunciado.rate = 0.9;window.speechSynthesis.speak(enunciado);
-       } else {
-       alert("Tu dispositivo no soporta la reproducción de audio nativa.");
-       }
-       }
-       
-       function mostrarPistaVisual() {
-       const txtContexto = document.getElementById('repaso-contexto');
-       if (!txtContexto) return;
-       txtContexto.classList.toggle('oculta');
-       }
+// --- 2. CONTROL EFICIENTE DE LA PISTA VISUAL ---
+function mostrarPistaVisual() {
+    // MEJORA: Reutilizamos la referencia global indexada que declaramos antes (elRepasoContexto)
+    if (!elRepasoContexto) return;
+    
+    // Conmutamos la visibilidad de la pista de forma fluida
+    elRepasoContexto.classList.toggle('oculta');
+}
 
 // =========================================================================
-// 10. NAVEGACIÓN SPA E INTERFAZ
+// 10. NAVEGACIÓN SPA E INTERFAZ CORREGIDO 20260901
 // =========================================================================
+// --- CENTRALIZACIÓN DEL DOM DE INTERFAZ (Se declara arriba una sola vez) ---
+const panelesPantallas = document.querySelectorAll('.pantalla');
+const enlacesNavegacion = document.querySelectorAll('.btn-nav');
+
+// Elementos de la interfaz de repaso interactivo
+const elTarjetaDorso = document.getElementById('tarjeta-dorso');
+const elBtnMostrarResp = document.getElementById('btn-mostrar-respuesta');
+const elContenedorCalif = document.getElementById('botones-calificacion');
+const elRepasoContexto = document.getElementById('repaso-contexto');
+
+// --- 1. CONTROL DE NAVEGACIÓN ---
 function cambiarPantalla(idPantallaObjetivo) {
-    document.querySelectorAll('.pantalla').forEach(p => p.classList.add('oculta'));
-    document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('activo'));
+    // Apagamos todas las pantallas y limpiamos estilos de botones activos
+    panelesPantallas.forEach(p => p.classList.add('oculta'));
+    enlacesNavegacion.forEach(b => b.classList.remove('activo'));
 
+    // Encendemos la pantalla seleccionada
     const pantallaDestino = document.getElementById(idPantallaObjetivo);
     if (pantallaDestino) pantallaDestino.classList.remove('oculta');
 
-    const botonActivo = Array.from(document.querySelectorAll('.btn-nav')).find(b => b.getAttribute('data-pantalla') === idPantallaObjetivo);
-
+    // Buscamos y activamos el botón correcto de manera eficiente
+    const botonActivo = Array.from(enlacesNavegacion).find(b => b.getAttribute('data-pantalla') === idPantallaObjetivo);
     if (botonActivo) botonActivo.classList.add('activo');
 
-    // Carga de datos dinámica obligatoria al cambiar de pestaña
-    if (idPantallaObjetivo === 'pantalla-registro') poblarSelectores();
-    if (idPantallaObjetivo === 'pantalla-repaso') cargarSesionRepaso();
-    if (idPantallaObjetivo === 'pantalla-buscador') ejecutarBusqueda();
-    if (idPantallaObjetivo === 'pantalla-configuracion') actualizarEstadisticas();
+    // Enrutador de carga dinámica de datos (Buenas Prácticas)
+    const accionesPantallas = {
+        'pantalla-registro': poblarSelectores,
+        'pantalla-repaso': cargarSesionRepaso,
+        'pantalla-buscador': ejecutarBusqueda,
+        'pantalla-configuracion': actualizarEstadisticas
+    };
+
+    if (accionesPantallas[idPantallaObjetivo]) {
+        accionesPantallas[idPantallaObjetivo]();
+    }
 }
 window.cambiarPantalla = cambiarPantalla;
          
+// --- 2. MOSTRAR RESPUESTA ---
 function mostrarRespuesta() {
-         document.getElementById('tarjeta-dorso')?.classList.remove('oculta');
-         document.getElementById('btn-mostrar-respuesta')?.classList.add('oculta');
-         document.getElementById('botones-calificacion')?.classList.remove('oculta');
+    elTarjetaDorso?.classList.remove('oculta');
+    elBtnMostrarResp?.classList.add('oculta');
+    elContenedorCalif?.classList.remove('oculta');
 }
          
+// --- 3. OCULTAR RESPUESTA ---
 function ocultarRespuesta() {
-         document.getElementById('tarjeta-dorso')?.classList.add('oculta');
-         document.getElementById('btn-mostrar-respuesta')?.classList.remove('oculta');
-         document.getElementById('botones-calificacion')?.classList.add('oculta');
-         document.getElementById('repaso-contexto')?.classList.add('oculta');
+    elTarjetaDorso?.classList.add('oculta');
+    elBtnMostrarResp?.classList.remove('oculta');
+    elContenedorCalif?.classList.add('oculta');
+    
+    // CORRECCIÓN: El contexto NUNCA debe ocultarse con CSS.
+    // Solo debemos asegurar que esté visible en el frente de la tarjeta.
+    elRepasoContexto?.classList.remove('oculta');
 }
 
 // =========================================================================
-// 11. INICIALIZADOR DE INTERFAZ Y EVENTOS MÓVILES (Garantía SPA)
+// 11. INICIALIZADOR DE INTERFAZ Y EVENTOS MÓVILES (Garantía SPA) CORREGIDA 20260901
 // =========================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Vinculamos de inmediato los clics a los botones (Inmune a fallos de BD)
-    document.querySelectorAll('.btn-nav').forEach(boton => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Vinculamos los eventos usando la variable global pre-indexada (Más rápido para la Canaimita)
+    // Nota: Asegúrate de que 'enlacesNavegacion' esté declarado arriba en tu script global
+    const botonesNav = document.querySelectorAll('.btn-nav'); 
+    
+    botonesNav.forEach(boton => {
         boton.addEventListener('click', function() {
             const pantallaDestino = this.getAttribute('data-pantalla');
             if (pantallaDestino) {
@@ -487,12 +745,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 2. Forzamos el renderizado visual de la primera pantalla
-    cambiarPantalla('pantalla-registro');
+    // 2. Encendemos visualmente la pantalla de registro de inmediato (Carga visual instantánea)
+    // Para evitar que intente leer la BD antes de tiempo, hacemos el cambio visual puro primero
+    panelesPantallas.forEach(p => p.classList.add('oculta'));
+    document.getElementById('pantalla-registro')?.classList.remove('oculta');
+    Array.from(botonesNav).find(b => b.getAttribute('data-pantalla') === 'pantalla-registro')?.classList.add('activo');
 
-    // 3. Conectamos la base de datos de manera aislada tras estabilizar el DOM
-    setTimeout(() => {
-        inicializarBaseDatos();
-    }, 100);
+    // 3. Conectamos la base de datos de manera aislada y segura
+    // Eliminamos el setTimeout impredecible y usamos la sincronía real de JavaScript
+    try {
+        await inicializarBaseDatos();
+        
+        // 4. Una vez que la base de datos está 100% lista y conectada, poblamos los selectores
+        await poblarSelectores();
+        console.log("🚀 Aplicación e interfaz inicializadas en el orden correcto.");
+    } catch (error) {
+        console.error("Error en la secuencia de inicialización del sistema:", error);
+    }
 });
 
