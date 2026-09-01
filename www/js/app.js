@@ -8,54 +8,66 @@ let idElementoEdicion = null;
 
 async function inicializarBaseDatos() {
     try {
-        // 1. Conexión directa al plugin nativo empaquetado en tu APK
-        const SQLite = Capacitor.Plugins.CapacitorSQLite;
+        // 1. Acceder a los componentes modernos del módulo SQLite
+        const { CapacitorSQLite, SQLiteConnection } = window.Capacitor.Plugins;
+
+        if (!CapacitorSQLite) {
+            throw new Error("El plugin nativo CapacitorSQLite no está disponible en este binario.");
+        }
+
+        // 2. FUNDAMENTO: Crear la instancia del conector oficial de Capacitor 6
+        const conectorSqlite = new SQLiteConnection(CapacitorSQLite);
+
         const dbName = "mi_idioma_app";
 
-        // 2. Inicializar el motor nativo de Android
-        await SQLite.initWebStore();
+        // 3. Limpiar y verificar consistencia de hilos nativos en Android
+        const consistencia = await conectorSqlite.checkConnectionsConsistency();
+        const estaConectado = await conectorSqlite.isConnection(dbName, false);
 
-        // 3. Crear la conexión nativa al archivo .db de Android
-        await SQLite.createConnection({
-            database: dbName,
-            version: 1,
-            encrypted: false,
-            mode: "no-encryption"
-        });
+        let baseDatosNativa;
 
-        // 4. Abrir de forma efectiva la base de datos en el teléfono
-        await SQLite.open({ database: dbName });
+        // 4. Evaluar si la conexión ya existía en el teléfono para recuperarla o crearla
+        if (consistencia.result && estaConectado.result) {
+            baseDatosNativa = await conectorSqlite.retrieveConnection(dbName, false);
+        } else {
+            baseDatosNativa = await conectorSqlite.createConnection(
+                dbName, 
+                false,            // encrypted
+                "no-encryption",  // mode
+                1,                // version
+                false             // readOnly
+            );
+        }
 
-        console.log("✅ ¡Conexión con SQLite exitosa en Android!");
-        
-        // 5. Mapeamos db_real para compatibilidad con tus funciones existentes
+        // 5. Abrir el archivo físico .db en el almacenamiento de Android
+        await baseDatosNativa.open();
+        console.log("✅ ¡Conexión con SQLite exitosa usando Capacitor 6!");
+
+        // 6. Mapear tu objeto db_real para que no tengas que alterar tus SELECT/INSERT existentes
         db_real = {
             query: async function({ statement, values }) {
-                return await SQLite.query({ database: dbName, statement: statement, values: values || [] });
+                return await baseDatosNativa.query(statement, values || []);
             },
             execute: async function({ statement }) {
-                return await SQLite.execute({ database: dbName, statements: [statement] });
+                return await baseDatosNativa.execute(statement);
             }
         };
 
-        // 6. Ejecutar la creación de tablas y llenar los selectores
+        // 7. Lanzar los cimientos del CRUD
         await crearTablasSiNoExisten();
         await poblarSelectores();
 
-        // Notificación opcional de éxito en segundo plano
         if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones("Base de datos lista para usar", "exito");
+            mostrarNotificaciones("Base de datos enlazada con éxito", "exito");
         }
 
     } catch (error) {
-        console.error("Error en el puente nativo de Android:", error);
+        console.error("Error capturado en el puente nativo:", error);
         
-        // 7. Integración con tu sistema de Toast nativo
-        const mensajeError = error.message || JSON.stringify(error);
+        // Tu Toast reflejará la causa exacta (si es sintaxis, permisos o parámetros)
+        const mensajeFinal = error.message || JSON.stringify(error);
         if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones(`Fallo en base de datos: ${mensajeError}`, "error");
-        } else {
-            console.error("La función mostrarNotificaciones no está disponible globalmente.");
+            mostrarNotificaciones(`Fallo nativo: ${mensajeFinal}`, "error");
         }
     }
 }
