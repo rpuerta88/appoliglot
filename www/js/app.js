@@ -27,15 +27,26 @@ async function mostrarNotificacion(mensaje) {
 async function inicializarBaseDatos() {
     try {
         const { CapacitorSQLite } = Capacitor.Plugins;
-        
-        db_real = await CapacitorSQLite.createConnection({
-            database: "mi_idioma_app",
-            version: 1,
-            encrypted: false,
-            mode: "no-encryption"
-        });
+        // 1. FUNDAMENTO DE SEGURIDAD: Verificar si Android ya tiene una conexión abierta
+        const infoConexiones = await CapacitorSQLite.checkConnectionsConsistency();
+        const existeConexion = await CapacitorSQLite.isConnection({ database: "mi_idioma_app" });
 
+        if (existeConexion.result) {
+            // Si ya existía de un arranque previo, la recuperamos en lugar de colapsar
+            db_real = await CapacitorSQLite.retrieveConnection({ database: "mi_idioma_app" });
+        } else {
+            // Si es la primera vez que abre la App, creamos la conexión normalmente
+            db_real = await CapacitorSQLite.createConnection({
+                database: "mi_idioma_app",
+                version: 1,
+                encrypted: false,
+                mode: "no-encryption"
+            });
+        }
+
+        // 2. Abrir la base de datos de manera limpia
         await db_real.open();
+        
         
         // Optimización: Usamos tu nueva función global directamente
         await mostrarNotificacion("📱 ¡Conexión física a SQLite establecida!");
