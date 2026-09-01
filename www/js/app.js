@@ -1,10 +1,54 @@
 // =========================================================================
 // 1. CONEXIÓN PURA A SQLITE NATIVO (Optimizado para Android) CORRGIDO 20260101
 // =========================================================================
+/*
+// Usar el conector nativo correcto de Capacitor
+const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
+let db_real = null;
 
+*/
+const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
+
+
+async function inicializarBaseDatos() {
+    /*
+    if (typeof Capacitor === 'undefined') {
+        console.warn("⚠️ Entorno Web detected");
+        // (Tu lógica de simulación en Firefox si la dejaste)
+        return;
+    }
+    */
+    try {
+        // 1. Inicializar el plugin a nivel nativo en Android
+        // Esto le avisa al sistema operativo que prepare el motor SQLite
+        await SQLitePlugin.initWebStore(); 
+
+        // 2. Abrir o crear la base de datos de manera directa
+        // En Android, este método único abre el archivo y crea la conexión al mismo tiempo
+        db_real = await SQLitePlugin.createConnection({
+            database: "mi_idioma_app",
+            version: 1,
+            encrypted: false,
+            mode: "no-encryption"
+        });
+
+        // 3. Abrir la conexión
+        await SQLitePlugin.open({ database: "mi_idioma_app" });
+
+        mostrarNotificacion("✅ Base de datos inicializada correctamente en Android");
+
+        // 4. Continuar con el ciclo de vida de tu App
+        await crearTablasSiNoExisten();
+        await poblarSelectores();
+
+    } catch (error) {
+        console.error("Error real capturado en Android:", error);
+        mostrarNotificacion("Error al inicializar la base de datos local: " + error.message);
+    }
+}
 
 // Función auxiliar global para mostrar notificaciones nativas en Android
 async function mostrarNotificacion(mensaje) {
