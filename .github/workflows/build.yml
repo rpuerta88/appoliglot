@@ -23,15 +23,15 @@ jobs:
         distribution: 'zulu'
         java-version: '21'
 
-    - name: Instalar Dependencias de la Aplicación
+    - name: Instalar Dependencias del Proyecto
       run: |
-        npm install
-        npm install @capacitor/core@6
-        npm install -D @capacitor/cli@6
-        npm install @capacitor/android@6
-        npm install @capacitor-community/sqlite@6
+        npm ci
 
-    - name: Sincronizar e Inyectar Código Web en Android
+    - name: Compilar Proyecto Web (Generar Código Limpio)
+      run: |
+        npm run build --if-present
+
+    - name: Actualizar y Sincronizar Plugins Nativos en Android
       run: |
         npx cap sync android
 
