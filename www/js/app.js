@@ -51,6 +51,7 @@ async function inicializarBaseDatos() {
         // Abrir de forma efectiva el archivo físico .db en el teléfono
         await SQLite.open({ database: dbName });
         console.log("¡Conexión a SQLite Nativo en Android establecida!");
+        mostrarNotificacion(`vamos bien`);
         
         // Mapeo transparente para la ejecución del CRUD directo
         db_real = {
