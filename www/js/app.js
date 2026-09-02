@@ -24,24 +24,21 @@ async function mostrarNotificacion(mensaje) {
 }
 
 async function inicializarBaseDatos() {
+    // --- CÓDIGO 100% NATIVO PARA ANDROID (Capacitor 6 Unificado) ---
     try {
-        // 1. Acceso directo al objeto unificado del plugin en Capacitor 6
         const SQLite = window.Capacitor.Plugins.CapacitorSQLite;
         const dbName = "mi_idioma_app";
 
         if (!SQLite) {
-            throw new Error("El componente CapacitorSQLite no está disponible en el puente global.");
+            throw new Error("El componente CapacitorSQLite no está inyectado en el APK.");
         }
 
-        // 2. FUNDAMENTO: Verificar consistencia y estado de conexiones nativas en Android
+        // Verificar consistencia nativa del almacenamiento de Android
         const consistencia = await SQLite.checkConnectionsConsistency();
         const estaConectado = await SQLite.isConnection({ database: dbName });
 
-        // 3. Crear o recuperar la conexión física real al archivo .db de Android
-        // En la API global de Capacitor 6, los métodos reciben un objeto de configuración
-        if (consistencia.result && estaConectado.result) {
-            console.log("Reutilizando conexión existente...");
-        } else {
+        // Si la conexión no existe de un arranque previo, la creamos
+        if (!(consistencia.result && estaConectado.result)) {
             await SQLite.createConnection({
                 database: dbName,
                 version: 1,
@@ -50,108 +47,68 @@ async function inicializarBaseDatos() {
                 readOnly: false
             });
         }
-
-        // 4. Abrir de forma efectiva la base de datos en el almacenamiento interno
+        
+        // Abrir de forma efectiva el archivo físico .db en el teléfono
         await SQLite.open({ database: dbName });
-        console.log("✅ ¡Conexión con SQLite exitosa en Android!");
-
-        // 5. Mapeamos tu interfaz db_real para garantizar compatibilidad con tus consultas existentes
+        console.log("¡Conexión a SQLite Nativo en Android establecida!");
+        
+        // Mapeo transparente para la ejecución del CRUD directo
         db_real = {
             query: async function({ statement, values }) {
-                // Estructura oficial de lectura para CapacitorSQLite global
-                const res = await SQLite.query({ 
-                    database: dbName, 
-                    statement: statement, 
-                    values: values || [] 
-                });
-                return res;
+                return await SQLite.query({ database: dbName, statement: statement, values: values || [] });
             },
-            execute: async function({ statement }) {
-                // Estructura oficial de escritura (INSERT, UPDATE, CREATE TABLE)
-                const res = await SQLite.execute({ 
-                    database: dbName, 
-                    statements: statement 
-                });
-                return res;
+            execute: async function({ statement, values }) {
+                // Si la consulta viene con parámetros (bindings) para un INSERT o UPDATE
+                if (values && values.length > 0) {
+                    return await SQLite.execute({ database: dbName, statements: statement, values: values });
+                }
+                // Para ejecuciones directas como la creación de tablas
+                return await SQLite.execute({ database: dbName, statements: statement });
             }
         };
 
-        // 6. Lanzar la estructura de datos obligatoria
+        // Inicializar estructura física y refrescar la interfaz
         await crearTablasSiNoExisten();
         await poblarSelectores();
-
-        // 7. Lanzamos tu Toast de éxito en color verde
-        if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones("Base de datos enlazada con éxito", "exito");
+        
+        // Lanzar notificación de éxito en tu sistema de Toasts
+        if (typeof mostrarNotificacion === 'function') {
+            mostrarNotificacion("Base de datos enlazada con éxito", "exito");
         }
 
     } catch (error) {
-        console.error("Error real en la inicialización nativa:", error);
+        console.error("Error crítico en el SQLite de Android:", error);
         const mensajeFinal = error.message || JSON.stringify(error);
-        if (typeof mostrarNotificaciones === 'function') {
-            mostrarNotificaciones(`Fallo nativo: ${mensajeFinal}`, "error");
+        if (typeof mostrarNotificacion === 'function') {
+            mostrarNotificacion(`Fallo nativo inicialización: ${mensajeFinal}`, "error");
         }
     }
 }
-
-
 
 async function crearTablasSiNoExisten() {
     try {
-        // MEJORA 1: Activamos OBLIGATORIAMENTE el soporte de claves foráneas
-        await db_real.execute({ statements: "PRAGMA foreign_keys = ON;" });
-
-        // MEJORA 2: Separamos los statements en un arreglo limpio. 
-        // Capacitor requiere que cada sentencia de creación sea un elemento independiente.
-        const queries = [
-            `CREATE TABLE IF NOT EXISTS idiomas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                nombre TEXT NOT NULL, 
-                simbolo TEXT NOT NULL UNIQUE
-            );`,
-            
-            `CREATE TABLE IF NOT EXISTS categorias (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                nombre TEXT NOT NULL UNIQUE
-            );`,
-            
-            `CREATE TABLE IF NOT EXISTS elementos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                idioma_id INTEGER NOT NULL, 
-                categoria_id INTEGER NOT NULL,
-                termino TEXT NOT NULL,
-                fonetica TEXT NOT NULL, 
-                traduccion TEXT NOT NULL, 
-                contexto TEXT, 
-                vistas INTEGER DEFAULT 0,
-                tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, 
-                creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
-                estado TEXT DEFAULT 'aprendizaje', 
-                intervalo INTEGER DEFAULT 0, 
-                factor_facilidad REAL DEFAULT 2.5,
-                repeticiones INTEGER DEFAULT 0, 
-                proximo_repaso TEXT,
-                FOREIGN KEY (idioma_id) REFERENCES idiomas(id) ON DELETE CASCADE, 
-                FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE
-            );`,
-
-            // MEJORA 3: Creamos índices para que las búsquedas y filtrados sean instantáneos
-            `CREATE INDEX IF NOT EXISTS idx_elementos_idioma ON elementos(idioma_id);`,
-            `CREATE INDEX IF NOT EXISTS idx_elementos_categoria ON elementos(categoria_id);`,
-            `CREATE INDEX IF NOT EXISTS idx_elementos_repaso ON elementos(proximo_repaso);`
-        ];
-
-        // Ejecutamos el arreglo completo de sentencias de forma secuencial y segura
-        for (const statement of queries) {
-            await db_real.execute({ statements: statement });
-        }
-        
-        console.log("📐 Estructura de base de datos e índices validados con éxito.");
+        // Sentencias individuales y limpias obligatorias para el motor SQLite nativo
+        await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS idiomas (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, simbolo TEXT NOT NULL UNIQUE);`});
+        await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS categorias (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE);` });
+        await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS elementos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, idioma_id INTEGER NOT NULL, categoria_id INTEGER NOT NULL,
+            termino TEXT NOT NULL, traduccion TEXT NOT NULL, contexto TEXT, vistas INTEGER DEFAULT 0,
+            tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+            estado TEXT DEFAULT 'aprendizaje', intervalo INTEGER DEFAULT 0, factor_facilidad REAL DEFAULT 2.5,
+            repeticiones INTEGER DEFAULT 0, proximo_repaso TEXT,
+            FOREIGN KEY (idioma_id) REFERENCES idiomas(id), FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+        );` });
+        mostrarNotificacion(`Base de datos SQLite creada exitosamente`);
     } catch (error) {
-        console.error("Error al estructurar las tablas de SQLite:", error);
-        await mostrarNotificacion("❌ Error al configurar las tablas internas.");
+        console.error("Error al crear las tablas internas:", error);
+        mostrarNotificacion(`Fallo en la construción de la Base de Datos`, "error")
     }
 }
+
+window.onload = function() {
+    inicializarBaseDatos();
+};
+
 
 // Combinamos la inicialización de la interfaz y la base de datos en un único punto seguro
 document.addEventListener('DOMContentLoaded', () => {
@@ -292,40 +249,41 @@ document.getElementById('form-config-idioma').addEventListener('submit', async f
 
     const nombre = document.getElementById('conf-idioma-nombre').value.trim();
     const simbolo = document.getElementById('conf-idioma-simbolo').value.trim();
+    //Nueva forma de Asignar el Idioma
+    const sqlInsert = `INSERT INTO idiomas (nombre, simbolo) VALUES (?, ?);`;
+try {
+    await db_real.execute({ statement: sqlInsert, values: [nombre, simbolo] });
+    mostrarNotificaciones(`Idioma "${nombre}" agregado con éxito.`, "exito");
+    this.reset();
 
-    try {
-        await db_real.run({ 
-            statement: "INSERT INTO idiomas (nombre, simbolo) VALUES (?, ?);", 
-            values: [nombre, simbolo] 
-        });
-        alert(`Idioma "${nombre}" guardado con éxito.`);
-        this.reset();
+    setTimeout(async () => {
         await poblarSelectores();
-    } catch (error) {
-        console.error("Error al insertar idioma:", error);
-        alert("Error: El idioma o símbolo ya existe.");
-    }
+    }, 250);
+} catch (error) {
+    console.error("Error al insertar idioma:", error);
+    mostrarNotificaciones("Error: El símbolo o nombre ya existe.", "error");
+}
 });
 
 // Registrar nueva Categoría desde Ajustes
 document.getElementById('form-config-categoria').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!db_real) return;
-
     const nombre = document.getElementById('conf-categoria-nombre').value.trim();
+    //nueva forma de registrar categorias
+    const sqlInsert = `INSERT INTO categorias (nombre) VALUES (?);`;
+try {
+    await db_real.execute({ statement: sqlInsert, values: [nombre] });
+    mostrarNotificaciones(`Categoría "${nombre}" agregada con éxito.`, "exito");
+    this.reset();
 
-    try {
-        await db_real.run({ 
-            statement: "INSERT INTO categorias (nombre) VALUES (?);", 
-            values: [nombre] 
-        });
-        alert(`Categoría "${nombre}" guardada con éxito.`);
-        this.reset();
+    setTimeout(async () => {
         await poblarSelectores();
-    } catch (error) {
-        console.error("Error al insertar categoría:", error);
-        alert("Error: Esta categoría ya existe.");
-    }
+    }, 250);
+} catch (error) {
+    console.error("Error al insertar categoría:", error);
+    mostrarNotificaciones("Error: Esta categoría ya existe.", "error");
+}
 });
 
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal
