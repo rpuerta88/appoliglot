@@ -26,7 +26,7 @@ async function mostrarNotificacion(mensaje) {
 async function inicializarBaseDatos() {
     // --- CÓDIGO 100% NATIVO PARA ANDROID (Capacitor 6 Unificado) ---
     try {
-        const SQLite = window.Capacitor.Plugins.CapacitorSQLite;
+        const SQLite = window.Capacitor && window.Capacitor.Plugins ? window.Capacitor.Plugins.CapacitorSQLite : null;
         const dbName = "mi_idioma_app";
 
         if (!SQLite) {
@@ -308,7 +308,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
             WHERE id = ?;
         `;
         try {
-            await db_real.run({ 
+            await db_real.execute({ 
                 statement: sqlUpdate, 
                 values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, idElementoEdicion] 
             });
@@ -325,7 +325,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         `;
         try {
-            await db_real.run({ 
+            await db_real.execute({ 
                 statement: sqlInsert, 
                 values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, hoy] 
             });
@@ -441,8 +441,8 @@ async function calificarTarjeta(calificacion) {
     
     try {
         // Guardamos todos los datos optimizados directamente en SQLite Nativo
-        await db_real.run({
-            statement: "UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;",
+        await db_real.execute({
+            statement: `UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
             values: [srs.intervalo, srs.factor_facilidad, srs.repeticiones, srs.estado, srs.proximo_repaso, tarjetaActual.vistas, tarjetaActual.id]
         });
         
@@ -573,8 +573,8 @@ async function eliminarElemento(idEliminar) {
         }
 
         // MEJORA 2: Ejecución del borrado en SQLite
-        await db_real.run({ 
-            statement: "DELETE FROM elementos WHERE id = ?;", 
+        await db_real.execute({ 
+            statement: `DELETE FROM elementos WHERE id = ?;`, 
             values: [idEliminar] 
         });
 
