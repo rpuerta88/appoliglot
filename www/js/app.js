@@ -127,14 +127,11 @@ async function crearTablasSiNoExisten() {
         // Sentencias individuales y limpias obligatorias para el motor SQLite nativo
         await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS idiomas (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, simbolo TEXT NOT NULL UNIQUE);`});
         await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS categorias (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE);` });
+        
         await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS elementos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, idioma_id INTEGER NOT NULL, categoria_id INTEGER NOT NULL,
-            termino TEXT NOT NULL, traduccion TEXT NOT NULL, contexto TEXT, vistas INTEGER DEFAULT 0,
-            tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
-            estado TEXT DEFAULT 'aprendizaje', intervalo INTEGER DEFAULT 0, factor_facilidad REAL DEFAULT 2.5,
-            repeticiones INTEGER DEFAULT 0, proximo_repaso TEXT,
-            FOREIGN KEY (idioma_id) REFERENCES idiomas(id), FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+            id INTEGER PRIMARY KEY AUTOINCREMENT, idioma_id INTEGER NOT NULL, categoria_id INTEGER NOT NULL, termino TEXT NOT NULL, fonetica TEXT, traduccion TEXT NOT NULL, contexto TEXT, vistas INTEGER DEFAULT 0, tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP, estado TEXT DEFAULT 'aprendizaje', intervalo INTEGER DEFAULT 0, factor_facilidad REAL DEFAULT 2.5, repeticiones INTEGER DEFAULT 0, proximo_repaso TEXT, FOREIGN KEY (idioma_id) REFERENCES idiomas(id), FOREIGN KEY (categoria_id) REFERENCES categorias(id)
         );` });
+        
         mostrarNotificacion(`Base de datos SQLite creada exitosamente`);
     } catch (error) {
         console.error("Error al crear las tablas internas:", error);
@@ -317,52 +314,77 @@ document.getElementById('form-config-categoria').addEventListener('submit', asyn
     }
 });
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal
+
+// Guardar o Editar una Palabra/Frase en el Vocabulario principal con Fonética Nativa
 document.getElementById('formulario-registro').addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!db_real) return;
+    
+    if (!db_real) {
+        await mostrarNotificacion("Por favor, espera a que la base de datos se inicialice.");
+        return;
+    }
 
-    const idiomaId = parseInt(document.getElementById('reg-idioma').value);
-    const categoriaId = parseInt(document.getElementById('reg-categoria').value);
-    const tipo = document.getElementById('reg-tipo').value;
-    const termino = document.getElementById('reg-termino').value.trim();
-    const fonetica = document.getElementById('reg-fonetica').value.trim();
-    const traduccion = document.getElementById('reg-traduccion').value.trim();
-    const contexto = document.getElementById('reg-contexto').value.trim();
+    try {
+        const elIdioma = document.getElementById('reg-idioma');
+        const elCategoria = document.getElementById('reg-categoria');
+        const elTipo = document.getElementById('reg-tipo');
+        const elTermino = document.getElementById('reg-termino');
+        const elFonetica = document.getElementById('reg-fonetica');
+        const elTraduccion = document.getElementById('reg-traduccion');
+        const elContexto = document.getElementById('reg-contexto');
 
-    if (idElementoEdicion !== null) {
-        // --- PROCESO DE EDICIÓN (UPDATE) ---
-        const sqlUpdate = `
-            UPDATE elementos 
-            SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, fonetica = ?, traduccion = ?, contexto = ?
-            WHERE id = ?;
-        `;
-        try {
-            await db_real.execute({ 
-                statement: sqlUpdate, 
-                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, idElementoEdicion] 
-            });
-            alert("¡Término actualizado con éxito!");
-            limpiarModoEdicion();
-        } catch (error) {
-            console.error("Error al editar en SQLite:", error);
+        if (!elIdioma.value || !elCategoria.value || !elTermino.value.trim() || !elTraduccion.value.trim()) {
+            await mostrarNotificacion("Por favor, rellena los campos obligatorios.");
+            return;
         }
-    } else {
-        // --- PROCESO DE CREACIÓN (INSERT) ---
+
+        const idiomaId = parseInt(elIdioma.value, 10);
+        const categoriaId = parseInt(elCategoria.value, 10);
+        const tipo = elTipo.value;
+        const termino = elTermino.value.trim();
+        const fonetica = elFonetica ? elFonetica.value.trim() : "";
+        const traduccion = elTraduccion.value.trim();
+        const contexto = elContexto ? elContexto.value.trim() : "";
         const hoy = new Date().toISOString().split('T')[0];
-        const sqlInsert = `
-            INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, fonetica, traduccion, contexto, proximo_repaso) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        `;
-        try {
-            await db_real.execute({ 
-                statement: sqlInsert, 
-                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, hoy] 
+
+        const esEdicion = (typeof idElementoEdicion !== 'undefined' && idElementoEdicion !== null);
+
+        if (esEdicion) {
+            // --- PROCESO DE EDICIÓN CON FONÉTICA ---
+            const sqlUpdate = `
+                UPDATE elementos 
+                SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, fonetica = ?, traduccion = ?, contexto = ?
+                WHERE id = ?;
+            `;
+            await db_real.execute({
+                statement: sqlUpdate,
+                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, idElementoEdicion]
             });
-            alert(`¡"${termino}" agendado para estudio hoy!`);
+            
+            await mostrarNotificacion("¡Término actualizado con éxito!");
+            limpiarModoEdicion();
+        } else {
+            // --- PROCESO DE CREACIÓN CON FONÉTICA ---
+            const sqlInsert = `
+                INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, fonetica, traduccion, contexto, proximo_repaso, estado) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'aprendizaje');
+            `;
+            await db_real.execute({
+                statement: sqlInsert,
+                values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, hoy]
+            });
+            
+            await mostrarNotificacion(`¡"${termino}" guardado en tu vocabulario!`);
             this.reset();
-        } catch (error) {
-            console.error("Error al insertar término en SQLite:", error);
         }
+
+        if (typeof actualizarEstadisticas === 'function') {
+            await actualizarEstadisticas();
+        }
+
+    } catch (error) {
+        console.error("Error al procesar término en SQLite:", error);
+        await mostrarNotificacion("❌ Error interno al guardar el vocabulario.");
     }
 });
 
