@@ -79,19 +79,37 @@ async function inicializarBaseDatos() {
         }
 
         console.log("¡Conexión a SQLite Nativo en Android establecida correctamente!");
+        
+        // Mapeo corregido y optimizado para Capacitor SQLite Nativo v6
         db_real = {
             query: async function({ statement, values }) {
-                return await SQLite.query({ database: dbName, statement: statement, values: values || [] });
+                // El método nativo query lee y procesa bindings correctamente
+                const resultado = await SQLite.query({ 
+                    database: dbName, 
+                    statement: statement, 
+                    values: values || [] 
+                });
+                return resultado;
             },
             execute: async function({ statement, values }) {
+                // CORRECCIÓN CRÍTICA: Si la sentencia incluye parámetros (bindings) como un INSERT,
+                // DEBEMOS usar el método nativo .run(). El método .execute() nativo NO soporta el arreglo 'values'.
                 if (values && values.length > 0) {
-                    return await SQLite.execute({ database: dbName, statements: statement, values: values });
+                    return await SQLite.run({ 
+                        database: dbName, 
+                        statement: statement, 
+                        values: values 
+                    });
                 }
-                return await SQLite.execute({ database: dbName, statements: statement });
+                // Para ejecuciones puras sin parámetros (como CREATE TABLE) usamos execute
+                return await SQLite.execute({ 
+                    database: dbName, 
+                    statements: statement 
+                });
             }
         };
-
-        // Crear la estructura física interna de datos
+        
+       // Crear la estructura física interna de datos
         await crearTablasSiNoExisten();
 
     } catch (error) {
