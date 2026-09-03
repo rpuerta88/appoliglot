@@ -31,7 +31,8 @@ jobs:
       run: |
         npm run build --if-present
         npx cap sync android
-
+        npx capacitor-assets generate --android
+    
     - name: Compilar APK usando el Gradle del Proyecto
       run: |
         cd android

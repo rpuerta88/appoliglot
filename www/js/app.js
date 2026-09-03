@@ -315,7 +315,11 @@ document.getElementById('form-config-categoria').addEventListener('submit', asyn
 });
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal
 
+
+
+
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal con Fonética Nativa
+
 document.getElementById('formulario-registro').addEventListener('submit', async function(e) {
     e.preventDefault();
     
@@ -387,6 +391,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
         await mostrarNotificacion("❌ Error interno al guardar el vocabulario.");
     }
 });
+
 
 function prepararEdicion(elemento) {
     idElementoEdicion = elemento.id;
@@ -812,6 +817,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Eliminamos el setTimeout impredecible y usamos la sincronía real de JavaScript
     try {
         await inicializarBaseDatos();
+        // Filtro dinámico en tiempo real para el buscador
+        document.getElementById('input-busqueda')?.addEventListener('input', ejecutarBusqueda);
+
         
         // 4. Una vez que la base de datos está 100% lista y conectada, poblamos los selectores
         await poblarSelectores();
