@@ -240,47 +240,67 @@ async function poblarSelectores() {
 // Registrar nuevo Idioma desde Ajustes
 document.getElementById('form-config-idioma').addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!db_real) return;
+    
+    // Si la base de datos aún no está lista, avisamos al usuario en vez de fallar en silencio
+    if (!db_real) {
+        await mostrarNotificacion("Por favor, espera a que la base de datos se inicialice.");
+        return;
+    }
 
     const nombre = document.getElementById('conf-idioma-nombre').value.trim();
     const simbolo = document.getElementById('conf-idioma-simbolo').value.trim();
-    //Nueva forma de Asignar el Idioma
+    
+    if (!nombre || !simbolo) {
+        await mostrarNotificacion("Por favor, rellena todos los campos.");
+        return;
+    }
+
     const sqlInsert = `INSERT INTO idiomas (nombre, simbolo) VALUES (?, ?);`;
-try {
-    await db_real.execute({ statement: sqlInsert, values: [nombre, simbolo] });
-    mostrarNotificaciones(`Idioma "${nombre}" agregado con éxito.`, "exito");
-    this.reset();
+    try {
+        await db_real.execute({ statement: sqlInsert, values: [nombre, simbolo] });
+        // CORREGIDO: Se cambió mostrarNotificaciones por mostrarNotificacion
+        await mostrarNotificacion(`Idioma "${nombre}" agregado con éxito.`);
+        this.reset();
 
-    setTimeout(async () => {
-        await poblarSelectores();
-    }, 250);
-} catch (error) {
-    console.error("Error al insertar idioma:", error);
-    mostrarNotificaciones("Error: El símbolo o nombre ya existe.", "error");
-}
+        setTimeout(async () => {
+            await poblarSelectores();
+        }, 250);
+    } catch (error) {
+        console.error("Error al insertar idioma:", error);
+        await mostrarNotificacion("Error: El símbolo o nombre ya existe.");
+    }
 });
-
 // Registrar nueva Categoría desde Ajustes
 document.getElementById('form-config-categoria').addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!db_real) return;
+    
+    if (!db_real) {
+        await mostrarNotificacion("Por favor, espera a que la base de datos se inicialice.");
+        return;
+    }
+
     const nombre = document.getElementById('conf-categoria-nombre').value.trim();
-    //nueva forma de registrar categorias
+    
+    if (!nombre) {
+        await mostrarNotificacion("Por favor, ingresa un nombre para la categoría.");
+        return;
+    }
+
     const sqlInsert = `INSERT INTO categorias (nombre) VALUES (?);`;
-try {
-    await db_real.execute({ statement: sqlInsert, values: [nombre] });
-    mostrarNotificaciones(`Categoría "${nombre}" agregada con éxito.`, "exito");
-    this.reset();
+    try {
+        await db_real.execute({ statement: sqlInsert, values: [nombre] });
+        // CORREGIDO: Se cambió mostrarNotificaciones por mostrarNotificacion
+        await mostrarNotificacion(`Categoría "${nombre}" agregada con éxito.`);
+        this.reset();
 
-    setTimeout(async () => {
-        await poblarSelectores();
-    }, 250);
-} catch (error) {
-    console.error("Error al insertar categoría:", error);
-    mostrarNotificaciones("Error: Esta categoría ya existe.", "error");
-}
+        setTimeout(async () => {
+            await poblarSelectores();
+        }, 250);
+    } catch (error) {
+        console.error("Error al insertar categoría:", error);
+        await mostrarNotificacion("Error: Esta categoría ya existe.");
+    }
 });
-
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal
 document.getElementById('formulario-registro').addEventListener('submit', async function(e) {
     e.preventDefault();
