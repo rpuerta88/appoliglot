@@ -213,18 +213,17 @@ function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repet
 // =========================================================================
 
 async function poblarSelectores() {
-    // MEJORA: Reutilizamos las referencias globales del DOM que cacheamos al inicio del script
-    // (Asegúrate de que 'regIdioma' y 'regCategoria' estén declaradas arriba en el script global)
+    // Capturamos los elementos del DOM de forma explícita antes de evaluar
+    const regIdioma = document.getElementById('reg-idioma');
+    const regCategoria = document.getElementById('reg-categoria');
+
     if (!regIdioma || !regCategoria) return;
-    
-    // Si por alguna razón la base de datos se desconectara, evitamos que la app rompa
     if (!db_real) {
         console.warn("Intento de poblar selectores sin una conexión activa a SQLite.");
         return;
     }
 
     try {
-        // Lanzamos ambas consultas SQL en paralelo al puente nativo de Android
         const [resIdiomas, resCategorias] = await Promise.all([
             db_real.query({ statement: "SELECT id, nombre, simbolo FROM idiomas ORDER BY nombre ASC;" }),
             db_real.query({ statement: "SELECT id, nombre FROM categorias ORDER BY nombre ASC;" })
@@ -233,7 +232,6 @@ async function poblarSelectores() {
         const listaIdiomas = resIdiomas?.values || [];
         const listaCategorias = resCategorias?.values || [];
 
-        // Inyección masiva y limpia de un solo golpe al DOM
         regIdioma.innerHTML = [
             '<option value="">Selecciona un idioma...</option>',
             ...listaIdiomas.map(i => `<option value="${i.id}">${i.nombre} (${i.simbolo})</option>`)
@@ -243,11 +241,10 @@ async function poblarSelectores() {
             '<option value="">Selecciona una categoría...</option>',
             ...listaCategorias.map(c => `<option value="${c.id}">${c.nombre}</option>`)
         ].join('');
-        
-        console.log("📐 Selectores de la interfaz sincronizados con SQLite.");
+
+        console.log("Selectores de la interfaz sincronizados con SQLite.");
     } catch (error) {
         console.error("Error al leer datos nativos para los selectores:", error);
-        await mostrarNotificacion("❌ Error al cargar las listas de idiomas y categorías.");
     }
 }
 
