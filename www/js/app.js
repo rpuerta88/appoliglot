@@ -24,7 +24,6 @@ async function mostrarNotificacion(mensaje) {
 }
 
 async function inicializarBaseDatos() {
-    // --- CÓDIGO 100% NATIVO PARA ANDROID (Capacitor 6 Unificado) ---
     try {
         const SQLite = window.Capacitor && window.Capacitor.Plugins ? window.Capacitor.Plugins.CapacitorSQLite : null;
         const dbName = "mi_idioma_app";
@@ -33,12 +32,37 @@ async function inicializarBaseDatos() {
             throw new Error("El componente CapacitorSQLite no está inyectado en el APK.");
         }
 
-        // Verificar consistencia nativa del almacenamiento de Android
-        const consistencia = await SQLite.checkConnectionsConsistency();
-        const estaConectado = await SQLite.isConnection({ database: dbName });
+        // 1. Verificación defensiva estricta de consistencia nativa
+        let consistencia;
+        try {
+            consistencia = await SQLite.checkConnectionsConsistency();
+        } catch (e) {
+            console.warn("Inconsistencia nativa detectada, procediendo a restaurar conexiones:", e);
+            consistencia = { result: false };
+        }
 
-        // Si la conexión no existe de un arranque previo, la creamos
-        if (!(consistencia.result && estaConectado.result)) {
+        // 2. Comprobar si la conexión ya está activa en la memoria nativa
+        let estaConectado;
+        try {
+            estaConectado = await SQLite.isConnection({ database: dbName });
+        } catch (e) {
+            estaConectado = { result: false };
+        }
+
+        // 3. Flujo inteligente de conexión basado en el estado real
+        if (consistencia.result && estaConectado.result) {
+            console.log("La conexión ya existía de forma consistente en memoria nativa.");
+        } else {
+            // Si existía una conexión muerta o corrupta en el pool nativo, la cerramos primero
+            if (estaConectado.result) {
+                try {
+                    await SQLite.closeConnection({ database: dbName });
+                } catch(e) {
+                    console.warn("No se pudo cerrar la conexión huérfana (operación segura):", e);
+                }
+            }
+            
+            // Creamos la conexión de forma limpia
             await SQLite.createConnection({
                 database: dbName,
                 version: 1,
@@ -47,35 +71,28 @@ async function inicializarBaseDatos() {
                 readOnly: false
             });
         }
-        
-        // Abrir de forma efectiva el archivo físico .db en el teléfono
-        await SQLite.open({ database: dbName });
-        console.log("¡Conexión a SQLite Nativo en Android establecida!");
-        mostrarNotificacion(`vamos bien`);
-        
-        // Mapeo transparente para la ejecución del CRUD directo
+
+        // 4. Abrir la base de datos ÚNICAMENTE si no se encuentra abierta ya
+        let verificacionFinal = await SQLite.isDBOpen({ database: dbName });
+        if (!verificacionFinal.result) {
+            await SQLite.open({ database: dbName });
+        }
+
+        console.log("¡Conexión a SQLite Nativo en Android establecida correctamente!");
         db_real = {
             query: async function({ statement, values }) {
                 return await SQLite.query({ database: dbName, statement: statement, values: values || [] });
             },
             execute: async function({ statement, values }) {
-                // Si la consulta viene con parámetros (bindings) para un INSERT o UPDATE
                 if (values && values.length > 0) {
                     return await SQLite.execute({ database: dbName, statements: statement, values: values });
                 }
-                // Para ejecuciones directas como la creación de tablas
                 return await SQLite.execute({ database: dbName, statements: statement });
             }
         };
 
-        // Inicializar estructura física y refrescar la interfaz
+        // Crear la estructura física interna de datos
         await crearTablasSiNoExisten();
-        await poblarSelectores();
-        
-        // Lanzar notificación de éxito en tu sistema de Toasts
-        if (typeof mostrarNotificacion === 'function') {
-            mostrarNotificacion("Base de datos enlazada con éxito", "exito");
-        }
 
     } catch (error) {
         console.error("Error crítico en el SQLite de Android:", error);
@@ -83,6 +100,7 @@ async function inicializarBaseDatos() {
         if (typeof mostrarNotificacion === 'function') {
             mostrarNotificacion(`Fallo nativo inicialización: ${mensajeFinal}`, "error");
         }
+        throw error; // Propagar el error para frenar la inicialización de la interfaz
     }
 }
 
@@ -105,30 +123,6 @@ async function crearTablasSiNoExisten() {
         mostrarNotificacion(`Fallo en la construción de la Base de Datos`, "error")
     }
 }
-
-window.onload = function() {
-    inicializarBaseDatos();
-};
-
-
-// Combinamos la inicialización de la interfaz y la base de datos en un único punto seguro
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Iniciamos la base de datos local SQLite
-    inicializarBaseDatos();
-
-    // 2. Vinculamos los eventos de los botones de navegación (Optimizado para evitar re-búsquedas)
-    const botonesNav = document.querySelectorAll('.btn-nav');
-    
-    botonesNav.forEach(boton => {
-        boton.addEventListener('click', function() {
-            const pantallaDestino = this.getAttribute('data-pantalla');
-            if (pantallaDestino) {
-                cambiarPantalla(pantallaDestino);
-            }
-        });
-    });
-});
-
 
 // =========================================================================
 // 2. MOTOR DEL ALGORITMO DE REPETICIÓN ESPACIADA (SRS SM-2) CORREGIDO 20260901

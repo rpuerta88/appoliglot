@@ -11,13 +11,13 @@ jobs:
     steps:
     - name: Descargar el código fuente desde el repositorio
       uses: actions/checkout@v4
-
-    - name: Configurar Entorno de Node.js v24 (Versión Actualizada 2026)
+      
+    - name: Configurar Entorno de Node.js v20 (Igual al Entorno Local)
       uses: actions/setup-node@v4
       with:
-        node-version: 24
+        node-version: 20
 
-    - name: Configurar Java 21 usando la Acción v5 (Sin Advertencias)
+    - name: Configurar Java 21 usando la Acción v5
       uses: actions/setup-java@v5
       with:
         distribution: 'zulu'
@@ -27,12 +27,9 @@ jobs:
       run: |
         npm ci
 
-    - name: Compilar Proyecto Web (Generar Código Limpio)
+    - name: Compilar Proyecto Web e Inyectar en Android
       run: |
         npm run build --if-present
-
-    - name: Actualizar y Sincronizar Plugins Nativos en Android
-      run: |
         npx cap sync android
 
     - name: Compilar APK usando el Gradle del Proyecto
