@@ -129,8 +129,8 @@ async function crearTablasSiNoExisten() {
         await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS categorias (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE);` });
         
         await db_real.execute({ statement: `CREATE TABLE IF NOT EXISTS elementos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, idioma_id INTEGER NOT NULL, categoria_id INTEGER NOT NULL, termino TEXT NOT NULL, fonetica TEXT, traduccion TEXT NOT NULL, contexto TEXT, vistas INTEGER DEFAULT 0, tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP, estado TEXT DEFAULT 'aprendizaje', intervalo INTEGER DEFAULT 0, factor_facilidad REAL DEFAULT 2.5, repeticiones INTEGER DEFAULT 0, proximo_repaso TEXT, FOREIGN KEY (idioma_id) REFERENCES idiomas(id), FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-        );` });
+            id INTEGER PRIMARY KEY AUTOINCREMENT, idioma_id INTEGER NOT NULL, categoria_id INTEGER NOT NULL, termino TEXT NOT NULL, fonetica TEXT, traduccion TEXT NOT NULL, contexto TEXT, vistas INTEGER DEFAULT 0, tipo TEXT CHECK(tipo IN ('palabra', 'frase')) NOT NULL, creado_en TEXT DEFAULT CURRENT_TIMESTAMP, estado TEXT DEFAULT 'aprendizaje', intervalo INTEGER DEFAULT 0, factor_facilidad REAL DEFAULT 2.5, repeticiones INTEGER DEFAULT 0, proximo_repaso TEXT, FOREIGN KEY (idioma_id) REFERENCES idiomas(id), FOREIGN KEY (categoria_id) REFERENCES categorias(id));` 
+            });
         
         mostrarNotificacion(`Base de datos SQLite creada exitosamente`);
     } catch (error) {
@@ -313,10 +313,6 @@ document.getElementById('form-config-categoria').addEventListener('submit', asyn
         await mostrarNotificacion("Error: Esta categoría ya existe.");
     }
 });
-// Guardar o Editar una Palabra/Frase en el Vocabulario principal
-
-
-
 
 // Guardar o Editar una Palabra/Frase en el Vocabulario principal con Fonética Nativa
 
@@ -356,10 +352,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
         if (esEdicion) {
             // --- PROCESO DE EDICIÓN CON FONÉTICA ---
             const sqlUpdate = `
-                UPDATE elementos 
-                SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, fonetica = ?, traduccion = ?, contexto = ?
-                WHERE id = ?;
-            `;
+                UPDATE elementos SET idioma_id = ?, categoria_id = ?, tipo = ?, termino = ?, fonetica = ?, traduccion = ?, contexto = ? WHERE id = ?;`;
             await db_real.execute({
                 statement: sqlUpdate,
                 values: [idiomaId, categoriaId, tipo, termino, fonetica, traduccion, contexto, idElementoEdicion]
@@ -370,8 +363,7 @@ document.getElementById('formulario-registro').addEventListener('submit', async 
         } else {
             // --- PROCESO DE CREACIÓN CON FONÉTICA ---
             const sqlInsert = `
-                INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, fonetica, traduccion, contexto, proximo_repaso, estado) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'aprendizaje');
+                INSERT INTO elementos (idioma_id, categoria_id, tipo, termino, fonetica, traduccion, contexto, proximo_repaso, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'aprendizaje');
             `;
             await db_real.execute({
                 statement: sqlInsert,
@@ -431,13 +423,7 @@ async function cargarSesionRepaso() {
     try {
         // CORRECCIÓN 1: Filtramos tanto por 'aprendizaje' como por 'repaso' usando IN
         const sqlQuery = `
-            SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre  
-            FROM elementos e 
-            JOIN idiomas i ON e.idioma_id = i.id 
-            JOIN categorias c ON e.categoria_id = c.id 
-            WHERE e.proximo_repaso <= ? AND e.estado IN ('aprendizaje', 'repaso') 
-            ORDER BY e.id ASC;
-        `;
+            SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre FROM elementos e JOIN idiomas i ON e.idioma_id = i.id  JOIN categorias c ON e.categoria_id = c.id  WHERE e.proximo_repaso <= ? AND e.estado IN ('aprendizaje', 'repaso') ORDER BY e.id ASC;`;
         const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });
         pendientes = resultado.values || [];
     } catch (error) {
@@ -533,13 +519,7 @@ async function ejecutarBusqueda() {
 
     try {
         const sqlQuery = `
-            SELECT e.*, i.nombre AS idioma_nombre, c.nombre AS categoria_nombre  
-            FROM elementos e 
-            JOIN idiomas i ON e.idioma_id = i.id 
-            JOIN categorias c ON e.categoria_id = c.id 
-            WHERE e.estado = 'automatizada' 
-              AND (e.termino LIKE ? OR e.traduccion LIKE ? OR e.contexto LIKE ?) 
-            ORDER BY e.termino ASC;
+            SELECT e.*, i.nombre AS idioma_nombre, c.nombre AS categoria_nombre FROM elementos e JOIN idiomas i ON e.idioma_id = i.id JOIN categorias c ON e.categoria_id = c.id WHERE e.estado = 'automatizada' AND (e.termino LIKE ? OR e.traduccion LIKE ? OR e.contexto LIKE ?) ORDER BY e.termino ASC;
         `;
         const patron = `%${textoBusqueda}%`;
         const resultado = await db_real.query({ statement: sqlQuery, values: [patron, patron, patron] });
