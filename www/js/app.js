@@ -82,30 +82,33 @@ async function inicializarBaseDatos() {
         
         // Mapeo corregido y optimizado para Capacitor SQLite Nativo v6
         db_real = {
-            query: async function({ statement, values }) {
-                // El método nativo query lee y procesa bindings correctamente
-                const resultado = await SQLite.query({ 
-                    database: dbName, 
-                    statement: statement, 
-                    values: values || [] 
-                });
-                return resultado;
-            },
-            execute: async function({ statement, values }) {
-               if (values && values.length > 0) {
-               // Corrección: Usar .run() cuando existan parámetros binding
-               return await SQLitePlugin.run({ 
-                   database: dbName,
-                   statement: statement,
-                   values: values
+    query: async function({ statement, values }) {
+        const SQLite = window.Capacitor && window.Capacitor.Plugins ? window.Capacitor.Plugins.CapacitorSQLite : null;
+        return await SQLite.query({
+            database: dbName,
+            statement: statement,
+            values: values || []
+        });
+    },
+    execute: async function({ statement, values }) {
+        const SQLite = window.Capacitor && window.Capacitor.Plugins ? window.Capacitor.Plugins.CapacitorSQLite : null;
+        
+        // Si tiene parámetros bindings (como los INSERTS/UPDATES), usamos obligatoriamente el método .run() nativo
+        if (values && values.length > 0) {
+            return await SQLite.run({
+                database: dbName,
+                statement: statement,
+                values: values
+            });
+        }
+        
+        // Para sentencias puras estructurales como CREATE TABLE
+        return await SQLite.execute({
+            database: dbName,
+            statements: statement
         });
     }
-    return await SQLitePlugin.execute({
-        database: dbName,
-        statements: statement
-    });
-}
-        };
+};
         
        // Crear la estructura física interna de datos
         await crearTablasSiNoExisten();
@@ -699,6 +702,8 @@ async function escucharTermino() {
         }
     }
 }
+      window.escucharTermino = escucharTermino;
+      
        
 // --- 2. CONTROL EFICIENTE DE LA PISTA VISUAL ---
 function mostrarPistaVisual() {
@@ -708,6 +713,9 @@ function mostrarPistaVisual() {
     // Conmutamos la visibilidad de la pista de forma fluida
     elRepasoContexto.classList.toggle('oculta');
 }
+      window.mostrarPistaVisual = mostrarPistaVisual;
+
+
 
 // =========================================================================
 // 10. NAVEGACIÓN SPA E INTERFAZ CORREGIDO 20260901
@@ -752,25 +760,21 @@ window.cambiarPantalla = cambiarPantalla;
          
 // --- 2. MOSTRAR RESPUESTA ---
 function mostrarRespuesta() {
-    elTarjetaDorso?.classList.remove('oculta');
-    elBtnMostrarResp?.classList.add('oculta');
-    elContenedorCalif?.classList.remove('oculta');
+    document.getElementById('tarjeta-dorso')?.classList.remove('oculta');
+    document.getElementById('btn-mostrar-respuesta')?.classList.add('oculta');
+    document.getElementById('botones-calificacion')?.classList.remove('oculta');
 }
          
 // --- 3. OCULTAR RESPUESTA ---
 function ocultarRespuesta() {
-    const elTarjetaDorso = document.getElementById('tarjeta-dorso');
-    const elBtnMostrarResp = document.getElementById('btn-mostrar-respuesta');
-    const elContenedorCalif = document.getElementById('botones-calificacion');
-    const elRepasoContexto = document.getElementById('repaso-contexto');
-
-    elTarjetaDorso?.classList.add('oculta');
-    elBtnMostrarResp?.classList.remove('oculta');
-    elContenedorCalif?.classList.add('oculta');
-    
-    // El contexto debe iniciar oculto para que el botón "Pista" tenga sentido
-    elRepasoContexto?.classList.add('oculta'); 
+    document.getElementById('tarjeta-dorso')?.classList.add('oculta');
+    document.getElementById('btn-mostrar-respuesta')?.classList.remove('oculta');
+    document.getElementById('botones-calificacion')?.classList.add('oculta');
+    document.getElementById('repaso-contexto')?.classList.add('oculta'); // Inicia oculto bajo la pista
 }
+
+window.mostrarRespuesta = mostrarRespuesta;
+window.ocultarRespuesta = ocultarRespuesta;
 
 // =========================================================================
 // 11. INICIALIZADOR DE INTERFAZ Y EVENTOS MÓVILES (Garantía SPA) CORREGIDA 20260901
