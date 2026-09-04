@@ -189,14 +189,12 @@ function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repet
     }
 
     // CÁLCULO DE FECHA (Evitando desfases de zona horaria del sistema de forma limpia)
-    const fecha = new Date();
+     const fecha = new Date();
     fecha.setDate(fecha.getDate() + nuevoIntervalo);
     
-    const anio = fecha.getFullYear();
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const proximoRepaso = `${anio}-${mes}-${dia}`;
-
+    // Convertimos de forma segura a formato ISO YYYY-MM-DD compatible
+    const proximoRepaso = fecha.toISOString().split('T')[0];
+    
     return {
         intervalo: nuevoIntervalo,
         factor_facilidad: nuevoFactor,
@@ -495,11 +493,18 @@ async function calificarTarjeta(calificacion) {
         });
         
         // CORRECCIÓN 3: Eliminamos el uso innecesario de localStorage
+        // BUSCA EL FINAL DE LA FUNCIÓN calificarTarjeta Y REEMPLÁZALA POR ESTO:
         if (srs.estado === 'automatizada') {
             await mostrarNotificacion(`¡Espectacular! Se logró la automatización de: "${tarjetaActual.termino}".`);
         } else {
             await mostrarNotificacion("Calificación registrada con éxito.");
         }
+        
+        // CORRECCIÓN MÓVIL: Forzamos la actualización inmediata de los contadores en la UI
+        if (typeof actualizarEstadisticas === 'function') {
+            await actualizarEstadisticas();
+        }
+        
     } catch (error) {
         console.error("Error al actualizar la tarjeta en SQLite:", error);
         await mostrarNotificacion("❌ Error al guardar la calificación.");
@@ -508,6 +513,7 @@ async function calificarTarjeta(calificacion) {
     // Saltamos automáticamente a la siguiente tarjeta pendiente
     await cargarSesionRepaso();
 }
+
 
 
 // =========================================================================
