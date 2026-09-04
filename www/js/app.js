@@ -169,14 +169,14 @@ function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repet
         }
 
         // AJUSTE DEL FACTOR (Implementación SM2 Limpia y segura contra flotantes)
-        if (calificacion === 2) {
-            nuevoFactor = Number((factorFacilidadActual - 0.15).toFixed(2));
-        } else if (calificacion === 3) {
-            nuevoFactor = factorFacilidadActual; // Mantiene el factor actual (Acierto normal)
-        } else if (calificacion === 4) {
-            nuevoFactor = Number((factorFacilidadActual + 0.15).toFixed(2));
-        }
-    }
+
+       if (calificacion === 2) {
+           nuevoFactor = Number((factorFacilidadActual - 0.15).toFixed(2));
+       } else if (calificacion === 3) {
+           nuevoFactor = Number(factorFacilidadActual); // Mantiene el factor actual como número
+       } else if (calificacion === 4) {
+           nuevoFactor = Number((factorFacilidadActual + 0.15).toFixed(2));
+       }
 
     // Límite inferior recomendado por SuperMemo para evitar el "infierno de bajas frecuencias"
     if (nuevoFactor < 1.3) nuevoFactor = 1.3;
@@ -489,9 +489,17 @@ async function calificarTarjeta(calificacion) {
         // Guardamos todos los datos optimizados directamente en SQLite Nativo
         await db_real.execute({
             statement: `UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
-            values: [srs.intervalo, srs.factor_facilidad, srs.repeticiones, srs.estado, srs.proximo_repaso, tarjetaActual.vistas, tarjetaActual.id]
+            values: [
+               parseInt(srs.intervalo, 10),
+               parseFloat(srs.factor_facilidad), // Asegura el tipo REAL en Android
+               parseInt(srs.repeticiones, 10),
+               String(srs.estado),
+               String(srs.proximo_repaso),
+               parseInt(tarjetaActual.vistas, 10),
+               parseInt(tarjetaActual.id, 10)
+                    ]
         });
-        
+                
         // CORRECCIÓN 3: Eliminamos el uso innecesario de localStorage
         // BUSCA EL FINAL DE LA FUNCIÓN calificarTarjeta Y REEMPLÁZALA POR ESTO:
         if (srs.estado === 'automatizada') {
