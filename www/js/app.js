@@ -92,21 +92,19 @@ async function inicializarBaseDatos() {
                 return resultado;
             },
             execute: async function({ statement, values }) {
-                // CORRECCIÓN CRÍTICA: Si la sentencia incluye parámetros (bindings) como un INSERT,
-                // DEBEMOS usar el método nativo .run(). El método .execute() nativo NO soporta el arreglo 'values'.
-                if (values && values.length > 0) {
-                    return await SQLite.run({ 
-                        database: dbName, 
-                        statement: statement, 
-                        values: values 
-                    });
-                }
-                // Para ejecuciones puras sin parámetros (como CREATE TABLE) usamos execute
-                return await SQLite.execute({ 
-                    database: dbName, 
-                    statements: statement 
-                });
-            }
+               if (values && values.length > 0) {
+               // Corrección: Usar .run() cuando existan parámetros binding
+               return await SQLitePlugin.run({ 
+                   database: dbName,
+                   statement: statement,
+                   values: values
+        });
+    }
+    return await SQLitePlugin.execute({
+        database: dbName,
+        statements: statement
+    });
+}
         };
         
        // Crear la estructura física interna de datos
@@ -761,13 +759,17 @@ function mostrarRespuesta() {
          
 // --- 3. OCULTAR RESPUESTA ---
 function ocultarRespuesta() {
+    const elTarjetaDorso = document.getElementById('tarjeta-dorso');
+    const elBtnMostrarResp = document.getElementById('btn-mostrar-respuesta');
+    const elContenedorCalif = document.getElementById('botones-calificacion');
+    const elRepasoContexto = document.getElementById('repaso-contexto');
+
     elTarjetaDorso?.classList.add('oculta');
     elBtnMostrarResp?.classList.remove('oculta');
     elContenedorCalif?.classList.add('oculta');
     
-    // CORRECCIÓN: El contexto NUNCA debe ocultarse con CSS.
-    // Solo debemos asegurar que esté visible en el frente de la tarjeta.
-    elRepasoContexto?.classList.remove('oculta');
+    // El contexto debe iniciar oculto para que el botón "Pista" tenga sentido
+    elRepasoContexto?.classList.add('oculta'); 
 }
 
 // =========================================================================
