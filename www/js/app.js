@@ -431,17 +431,22 @@ async function cargarSesionRepaso() {
         console.error("Error al cargar repasos desde SQLite:", error);
     }
 
+// REEMPLAZA LAS LÍNEAS 433 A 447 EN cargarSesionRepaso() POR ESTO:
     const lblTipo = document.getElementById('repaso-tipo');
     const txtOrigen = document.getElementById('repaso-origen');
     const txtContexto = document.getElementById('repaso-contexto');
     const txtDestino = document.getElementById('repaso-destino');
     const btnMostrar = document.getElementById('btn-mostrar-respuesta');
-    
+    const elContenedorCalif = document.getElementById('botones-calificacion');
+    const elTarjetaDorso = document.getElementById('tarjeta-dorso');
+
     if (pendientes.length === 0) {
         if (lblTipo) lblTipo.innerText = "-";
         if (txtOrigen) txtOrigen.innerText = "¡Estás al día! No hay tarjetas pendientes para repasar hoy.";
         if (txtContexto) txtContexto.innerText = "";
         if (btnMostrar) btnMostrar.style.display = 'none';
+        if (elContenedorCalif) elContenedorCalif.classList.add('oculta');
+        if (elTarjetaDorso) elTarjetaDorso.classList.add('oculta');
         tarjetaActual = null;
         return;
     }
@@ -779,10 +784,11 @@ window.ocultarRespuesta = ocultarRespuesta;
 // =========================================================================
 // 11. INICIALIZADOR DE INTERFAZ Y EVENTOS MÓVILES (Garantía SPA) CORREGIDA 20260901
 // =========================================================================
+// REEMPLAZA EL INICIO DEL DOMContentLoaded (Líneas 776 a 795) POR ESTE:
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Vinculamos los eventos usando la variable global pre-indexada (Más rápido para la Canaimita)
-    // Nota: Asegúrate de que 'enlacesNavegacion' esté declarado arriba en tu script global
-    const botonesNav = document.querySelectorAll('.btn-nav'); 
+    // 1. Captura en caliente de los botones de navegación
+    const botonesNav = document.querySelectorAll('.btn-nav');
+    const panelesPantallas = document.querySelectorAll('.pantalla');
     
     botonesNav.forEach(boton => {
         boton.addEventListener('click', function() {
@@ -793,25 +799,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // 2. Encendemos visualmente la pantalla de registro de inmediato (Carga visual instantánea)
-    // Para evitar que intente leer la BD antes de tiempo, hacemos el cambio visual puro primero
+    // 2. Encendido visual puro de la pantalla de registro de inmediato
     panelesPantallas.forEach(p => p.classList.add('oculta'));
     document.getElementById('pantalla-registro')?.classList.remove('oculta');
     Array.from(botonesNav).find(b => b.getAttribute('data-pantalla') === 'pantalla-registro')?.classList.add('activo');
 
-    // 3. Conectamos la base de datos de manera aislada y segura
-    // Eliminamos el setTimeout impredecible y usamos la sincronía real de JavaScript
+    // 3. Conexión aislada de la base de datos
     try {
         await inicializarBaseDatos();
+        
         // Filtro dinámico en tiempo real para el buscador
         document.getElementById('input-busqueda')?.addEventListener('input', ejecutarBusqueda);
 
-        
-        // 4. Una vez que la base de datos está 100% lista y conectada, poblamos los selectores
+        // 4. Una vez que la base de datos está 100% lista, poblamos los selectores
         await poblarSelectores();
-        console.log("🚀 Aplicación e interfaz inicializadas en el orden correcto.");
+        console.log("Aplicación e interfaz inicializadas correctamente.");
     } catch (error) {
-        console.error("Error en la secuencia de inicialización del sistema:", error);
+        console.error("Error en la secuencia de inicialización:", error);
     }
 });
 
