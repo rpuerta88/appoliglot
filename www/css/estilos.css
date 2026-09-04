@@ -124,6 +124,15 @@ input, select, textarea {
     font-weight: bold;
 }
 
+.btn-calificar-manual{
+    background-color: #9c27b0;
+    color: white;
+    border-radius: 5px;
+    font-size: 0.8rem
+}
+
+
+
 .rojo { background-color: #f44336; }
 .amarillo { background-color: #ff9800; color: black;}
 .azul { background-color: #03a9f4; }

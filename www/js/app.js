@@ -524,6 +524,49 @@ async function calificarTarjeta(calificacion) {
     await cargarSesionRepaso();
 }
 
+async function automatizarTerminoManual() {
+    if (!tarjetaActual || !db_real) return;
+
+    try {
+        // Marcamos el proximo repaso muy a futuro (ej: 1 año) para sacarla del flujo diario
+        const fechaFutura = new Date();
+        fechaFutura.setDate(fechaFutura.getDate() + 100);
+        const anio = fechaFutura.getFullYear();
+        const mes = String(fechaFutura.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaFutura.getDate()).padStart(2, '0');
+        const proximoRepaso = `${anio}-${mes}-${dia}`;
+
+        // UPDATE DIRECTO: Forzamos el estado 'automatizada' omitiendo el contador de días
+        await db_real.execute({
+            statement: `UPDATE elementos SET intervalo = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
+            values: [
+                90, // Intervalo base de automatización
+                'automatizada', // Nuevo estado directo
+                proximoRepaso,
+                parseInt(tarjetaActual.vistas, 10),
+                parseInt(tarjetaActual.id, 10)
+            ]
+        });
+
+        await mostrarNotificacion(`¡Termino "${tarjetaActual.termino}" movido a Automatizadas de forma manual!`);
+
+        // Refrescamos las estadísticas de la UI inmediatamente
+        if (typeof actualizarEstadisticas === 'function') {
+            await actualizarEstadisticas();
+        }
+
+    } catch (error) {
+        console.error("Error al automatizar manualmente en SQLite:", error);
+        await mostrarNotificacion("❌ Error al automatizar el término.");
+    }
+
+    // Saltamos automáticamente a la siguiente tarjeta que falte por repasar
+    await cargarSesionRepaso();
+}
+
+// Exponemos la función al objeto global window para que el HTML la detecte en Android
+window.automatizarTerminoManual = automatizarTerminoManual;
+
 
 
 // =========================================================================
