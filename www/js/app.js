@@ -191,19 +191,21 @@ function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repet
     // CÁLCULO DE FECHA (Evitando desfases de zona horaria del sistema de forma limpia)
      const fecha = new Date();
     fecha.setDate(fecha.getDate() + nuevoIntervalo);
-    
-    // Convertimos de forma segura a formato ISO YYYY-MM-DD compatible
-    const proximoRepaso = fecha.toISOString().split('T')[0];
-    
+
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const proximoRepaso = `${anio}-${mes}-${dia}`; // Formato limpio YYYY-MM-DD
+
     return {
         intervalo: nuevoIntervalo,
-        factor_facilidad: nuevoFactor,
-        repeticiones: nuevasRepeticiones,
-        estado: nuevoEstado,
+        factor_facilidad: Number(nuevoFactor), // Forzamos que sea un número REAL
+        repeticiones: parseInt(nuevasRepeticiones, 10),
+        estado: String(nuevoEstado),
         proximo_repaso: proximoRepaso
     };
 }
-
+};   
 // =========================================================================
 // 3. FUNCIÓN DE LECTURA (Selectores desde SQLite Real) CORREGIDO 20260901
 // =========================================================================
@@ -422,7 +424,7 @@ async function cargarSesionRepaso() {
     try {
         // CORRECCIÓN 1: Filtramos tanto por 'aprendizaje' como por 'repaso' usando IN
         const sqlQuery = `
-            SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre FROM elementos e JOIN idiomas i ON e.idioma_id = i.id  JOIN categorias c ON e.categoria_id = c.id  WHERE e.proximo_repaso <= ? AND e.estado IN ('aprendizaje', 'repaso') ORDER BY e.id ASC;`;
+            SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre FROM elementos e JOIN idiomas i ON e.idioma_id = i.id JOIN categorias c ON e.categoria_id = c.id WHERE date(e.proximo_repaso) <= date(?) AND e.estado IN ('aprendizaje', 'repaso') ORDER BY e.id ASC;`;
         const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });
         pendientes = resultado.values || [];
     } catch (error) {
