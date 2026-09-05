@@ -604,7 +604,9 @@ async function ejecutarBusqueda() {
                     <strong class="termino-resultado">${item.termino}</strong> 
                     <span class="traduccion-resultado"> - ${item.traduccion}</span>
                     <br>
-                    <small class="contexto-resultado">${item.contexto || "Sin contexto adicional registrado"}</small>
+                    <small class="contexto-resultado" style="font-style: normal; color: #757575;">
+                    [ ${item.fonetica || "Sin fonética registrada"} ]
+                    </small>
                     <br>
                     <span class="etiqueta-resultado">${item.idioma_nombre} | ${item.categoria_nombre}</span>
                 </div>
