@@ -416,25 +416,27 @@ async function cargarSesionRepaso() {
     ocultarRespuesta();
     if (!db_real) return;
 
-    // Ajuste de fecha local segura (tal como optimizamos en el algoritmo anterior)
+    // Asegurar que el contexto se oculte de inmediato al cambiar de tarjeta
+    const txtContexto = document.getElementById('repaso-contexto');
+    if (txtContexto) txtContexto.classList.add('oculta');
+
     const fecha = new Date();
     const hoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
     let pendientes = [];
-    
+
     try {
-        // CORRECCIÓN 1: Filtramos tanto por 'aprendizaje' como por 'repaso' usando IN
+        // Filtro optimizado por fecha y estados correctos
         const sqlQuery = `
             SELECT e.*, i.nombre AS idioma_nombre, i.simbolo AS idioma_simbolo, c.nombre AS categoria_nombre FROM elementos e JOIN idiomas i ON e.idioma_id = i.id JOIN categorias c ON e.categoria_id = c.id WHERE date(e.proximo_repaso) <= date(?) AND e.estado IN ('aprendizaje', 'repaso') ORDER BY e.id ASC;`;
+            
         const resultado = await db_real.query({ statement: sqlQuery, values: [hoy] });
         pendientes = resultado.values || [];
     } catch (error) {
         console.error("Error al cargar repasos desde SQLite:", error);
     }
 
-// REEMPLAZA LAS LÍNEAS 433 A 447 EN cargarSesionRepaso() POR ESTO:
     const lblTipo = document.getElementById('repaso-tipo');
     const txtOrigen = document.getElementById('repaso-origen');
-    const txtContexto = document.getElementById('repaso-contexto');
     const txtDestino = document.getElementById('repaso-destino');
     const btnMostrar = document.getElementById('btn-mostrar-respuesta');
     const elContenedorCalif = document.getElementById('botones-calificacion');
@@ -450,11 +452,11 @@ async function cargarSesionRepaso() {
         tarjetaActual = null;
         return;
     }
-    
+
     if (btnMostrar) btnMostrar.style.display = 'block';
     const registro = pendientes[0];
-    
-    // Mapeo seguro del objeto actual
+
+    // Mapeo defensivo y seguro de la tarjeta activa
     tarjetaActual = {
         id: registro.id,
         idioma_id: registro.idioma_id,
@@ -472,55 +474,54 @@ async function cargarSesionRepaso() {
         idioma_simbolo: registro.idioma_simbolo,
         categoria_nombre: registro.categoria_nombre
     };
-    
-    // CORRECCIÓN 2: Unión limpia del texto usando un único Template Literal con barras separadoras
+
     if (lblTipo) {
         lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
     }
     if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
-    if (txtContexto) txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";
+    if (txtContexto) {
+        txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";
+    }
     if (txtDestino) txtDestino.innerText = tarjetaActual.traduccion;
 }
-    
+
 async function calificarTarjeta(calificacion) {
     if (!tarjetaActual || !db_real) return;
-    
+
     const srs = calcularSRS(calificacion, tarjetaActual.intervalo, tarjetaActual.factor_facilidad, tarjetaActual.repeticiones);
-    
+
     try {
-        // Guardamos todos los datos optimizados directamente en SQLite Nativo
+        // Actualización persistente en SQLite Nativo
         await db_real.execute({
-            statement: `UPDATE elementos SET intervalo = ?, factor_facilidad = ?, repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
+            statement: `UPDATE elementos SET intervalo = ?, factor_facilidad = ?, 
+            repeticiones = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
             values: [
-               parseInt(srs.intervalo, 10),
-               parseFloat(srs.factor_facilidad), // Asegura el tipo REAL en Android
-               parseInt(srs.repeticiones, 10),
-               String(srs.estado),
-               String(srs.proximo_repaso),
-               parseInt(tarjetaActual.vistas, 10),
-               parseInt(tarjetaActual.id, 10)
-                    ]
+                parseInt(srs.intervalo, 10),
+                parseFloat(srs.factor_facilidad), 
+                parseInt(srs.repeticiones, 10),
+                String(srs.estado),
+                String(srs.proximo_repaso),
+                parseInt(tarjetaActual.vistas, 10),
+                parseInt(tarjetaActual.id, 10)
+            ]
         });
-                
-        // CORRECCIÓN 3: Eliminamos el uso innecesario de localStorage
-        // BUSCA EL FINAL DE LA FUNCIÓN calificarTarjeta Y REEMPLÁZALA POR ESTO:
+
         if (srs.estado === 'automatizada') {
             await mostrarNotificacion(`¡Espectacular! Se logró la automatización de: "${tarjetaActual.termino}".`);
         } else {
             await mostrarNotificacion("Calificación registrada con éxito.");
         }
-        
-        // CORRECCIÓN MÓVIL: Forzamos la actualización inmediata de los contadores en la UI
+
         if (typeof actualizarEstadisticas === 'function') {
             await actualizarEstadisticas();
         }
-        
+
     } catch (error) {
         console.error("Error al actualizar la tarjeta en SQLite:", error);
         await mostrarNotificacion("❌ Error al guardar la calificación.");
     }
-    
-    // Saltamos automáticamente a la siguiente tarjeta pendiente
+
+    // Siguiente tarjeta en el pool
     await cargarSesionRepaso();
 }
 
@@ -528,29 +529,31 @@ async function automatizarTerminoManual() {
     if (!tarjetaActual || !db_real) return;
 
     try {
-        // Marcamos el proximo repaso muy a futuro (ej: 1 año) para sacarla del flujo diario
+        // Para sacarla del flujo diario de forma consistente con el SM-2 manual
+        const intervaloBaseAuto = 90;
         const fechaFutura = new Date();
-        fechaFutura.setDate(fechaFutura.getDate() + 100);
+        fechaFutura.setDate(fechaFutura.getDate() + intervaloBaseAuto);
+        
         const anio = fechaFutura.getFullYear();
         const mes = String(fechaFutura.getMonth() + 1).padStart(2, '0');
         const dia = String(fechaFutura.getDate()).padStart(2, '0');
         const proximoRepaso = `${anio}-${mes}-${dia}`;
 
-        // UPDATE DIRECTO: Forzamos el estado 'automatizada' omitiendo el contador de días
+        // Consistencia estricta de variables de control del algoritmo
         await db_real.execute({
-            statement: `UPDATE elementos SET intervalo = ?, estado = ?, proximo_repaso = ?, vistas = ? WHERE id = ?;`,
+            statement: `UPDATE elementos SET intervalo = ?, estado = ?, 
+            proximo_repaso = ?, vistas = ?, repeticiones = repeticiones + 1 WHERE id = ?;`,
             values: [
-                90, // Intervalo base de automatización
-                'automatizada', // Nuevo estado directo
+                intervaloBaseAuto,
+                'automatizada',
                 proximoRepaso,
                 parseInt(tarjetaActual.vistas, 10),
                 parseInt(tarjetaActual.id, 10)
             ]
         });
 
-        await mostrarNotificacion(`¡Termino "${tarjetaActual.termino}" movido a Automatizadas de forma manual!`);
+        await mostrarNotificacion(`¡Término "${tarjetaActual.termino}" movido a Automatizadas!`);
 
-        // Refrescamos las estadísticas de la UI inmediatamente
         if (typeof actualizarEstadisticas === 'function') {
             await actualizarEstadisticas();
         }
@@ -560,11 +563,10 @@ async function automatizarTerminoManual() {
         await mostrarNotificacion("❌ Error al automatizar el término.");
     }
 
-    // Saltamos automáticamente a la siguiente tarjeta que falte por repasar
     await cargarSesionRepaso();
 }
 
-// Exponemos la función al objeto global window para que el HTML la detecte en Android
+// Exposición global obligatoria para eventos inline del HTML de Capacitor Android
 window.automatizarTerminoManual = automatizarTerminoManual;
 
 
