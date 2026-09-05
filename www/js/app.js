@@ -731,43 +731,47 @@ async function actualizarEstadisticas() {
 // =========================================================================
 
 // --- 1. REPRODUCCIÓN DE VOZ (TEXT-TO-SPEECH AUTOMATIZADO) ---
+// --- 1. REPRODUCCIÓN DE VOZ (TEXT-TO-SPEECH AUTOMATIZADO) ---
 async function escucharTermino() {
-    if (!tarjetaActual || !tarjetaActual.termino) return;    
-    
+    if (!tarjetaActual || !tarjetaActual.termino) return;
+
     try {
-        // Intentamos usar el motor nativo de Capacitor (Mucho más estable en Android)
-        const { TextToSpeech } = Capacitor.Plugins;
+        // Captura directa y segura del plugin nativo para evitar fallos de lectura en el pool
+        const TextToSpeech = window.Capacitor && window.Capacitor.Plugins ? window.Capacitor.Plugins.TextToSpeech : null;
 
         if (TextToSpeech) {
             await TextToSpeech.speak({
                 text: tarjetaActual.termino,
-                lang: tarjetaActual.idioma_simbolo || 'en-US', // Formato estándar ISO (ej: 'en-US', 'es-ES')
-                rate: 0.9, // Velocidad de reproducción ligeramente pausada para aprendizaje
+                lang: tarjetaActual.idioma_simbolo || 'en-US', 
+                rate: 0.9, 
                 pitch: 1.0,
                 volume: 1.0,
                 category: 'ambient'
             });
         } else if ('speechSynthesis' in window) {
-            // Respaldo para cuando pruebas la app en el navegador de la Canaimita
+            // Respaldo web clásico
             window.speechSynthesis.cancel();
             const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
             enunciado.lang = tarjetaActual.idioma_simbolo || 'en';
             enunciado.rate = 0.9;
             window.speechSynthesis.speak(enunciado);
         } else {
-            await mostrarNotificacion("🔊 Tu dispositivo no soporta la reproducción de audio.");
+            await mostrarNotificacion("🔊 Tu dispositivo no soporta la reproducción nativa ni web de audio.");
         }
     } catch (error) {
         console.error("Error en el motor de voz (TTS):", error);
-        // Respaldo de seguridad si el plugin nativo falla en la inicialización
+        
+        // Respaldo de seguridad inmediato en caso de error en el hilo nativo
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const enunciado = new SpeechSynthesisUtterance(tarjetaActual.termino);
             enunciado.lang = tarjetaActual.idioma_simbolo || 'en';
+            enunciado.rate = 0.9;
             window.speechSynthesis.speak(enunciado);
         }
     }
 }
+
       window.escucharTermino = escucharTermino;
       
        

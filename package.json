@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@capacitor-community/sqlite": "^6.0.2",
+    "@capacitor-community/text-to-speech": "^5.1.0",
     "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/toast": "^6.0.4"
