@@ -144,68 +144,59 @@ async function crearTablasSiNoExisten() {
 // 2. MOTOR DEL ALGORITMO DE REPETICIÓN ESPACIADA (SRS SM-2) CORREGIDO 20260901
 // =========================================================================
 function calcularSRS(calificacion, intervaloActual, factorFacilidadActual, repeticionesActuales) {
-    // Escala asumida de calificación (1: Olvidado por completo, 2: Difícil, 3: Bien/Correcto, 4: Muy Fácil)
     let nuevoIntervalo = 0;
     let nuevoFactor = factorFacilidadActual;
     let nuevasRepeticiones = repeticionesActuales;
     let nuevoEstado = "aprendizaje";
 
     if (calificacion === 1) {
-        // REINICIO: Si olvidó la palabra, vuelve a empezar el ciclo
         nuevasRepeticiones = 0;
         nuevoIntervalo = 1;
-        // Penalizamos ligeramente el factor de facilidad por haberla olvidado (Matemática segura)
         nuevoFactor = Math.max(1.3, Number((factorFacilidadActual - 0.20).toFixed(2)));
     } else {
         nuevasRepeticiones++;
         
-        // Determinación del nuevo intervalo de días
         if (nuevasRepeticiones === 1) {
             nuevoIntervalo = 1;
         } else if (nuevasRepeticiones === 2) {
-            nuevoIntervalo = 3; // Puedes usar 4 o 6 días según prefieras el ritmo
+            nuevoIntervalo = 3; 
         } else {
             nuevoIntervalo = Math.round(intervaloActual * factorFacilidadActual);
         }
 
-        // AJUSTE DEL FACTOR (Implementación SM2 Limpia y segura contra flotantes)
-
        if (calificacion === 2) {
            nuevoFactor = Number((factorFacilidadActual - 0.15).toFixed(2));
        } else if (calificacion === 3) {
-           nuevoFactor = Number(factorFacilidadActual); // Mantiene el factor actual como número
+           nuevoFactor = Number(factorFacilidadActual); 
        } else if (calificacion === 4) {
            nuevoFactor = Number((factorFacilidadActual + 0.15).toFixed(2));
        }
+    }
 
-    // Límite inferior recomendado por SuperMemo para evitar el "infierno de bajas frecuencias"
     if (nuevoFactor < 1.3) nuevoFactor = 1.3;
 
     // DETERMINACIÓN DEL ESTADO DE LA TARJETA
     if (nuevoIntervalo >= 90) {
         nuevoEstado = "automatizada";
     } else if (nuevasRepeticiones > 2) {
-        nuevoEstado = "repaso"; // Estado intermedio para mejor organización estadística
+        nuevoEstado = "repaso"; 
     }
 
-    // CÁLCULO DE FECHA (Evitando desfases de zona horaria del sistema de forma limpia)
-     const fecha = new Date();
-    fecha.setDate(fecha.getDate() + nuevoIntervalo);
+    // NUEVO: Cálculo de la fecha del próximo repaso (en formato ISO: YYYY-MM-DD)
+    const fechaProximoRepaso = new Date();
+    fechaProximoRepaso.setDate(fechaProximoRepaso.getDate() + nuevoIntervalo);
+    const proximo_repaso = fechaProximoRepaso.toISOString().split('T')[0];
 
-    const anio = fecha.getFullYear();
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const proximoRepaso = `${anio}-${mes}-${dia}`; // Formato limpio YYYY-MM-DD
-
+    // RETORNO: Devolvemos el objeto completo para la base de datos
     return {
         intervalo: nuevoIntervalo,
-        factor_facilidad: Number(nuevoFactor), // Forzamos que sea un número REAL
-        repeticiones: parseInt(nuevasRepeticiones, 10),
-        estado: String(nuevoEstado),
-        proximo_repaso: proximoRepaso
+        factor_facilidad: nuevoFactor,
+        repeticiones: nuevasRepeticiones,
+        estado: nuevoEstado,
+        proximo_repaso: proximo_repaso
     };
 }
-};   
+  
 // =========================================================================
 // 3. FUNCIÓN DE LECTURA (Selectores desde SQLite Real) CORREGIDO 20260901
 // =========================================================================
@@ -732,7 +723,6 @@ async function actualizarEstadisticas() {
 // 9. HERRAMIENTAS ADICIONALES (TTS de Audio Nativo) CORREGIDA 20260901
 // =========================================================================
 
-// --- 1. REPRODUCCIÓN DE VOZ (TEXT-TO-SPEECH AUTOMATIZADO) ---
 // --- 1. REPRODUCCIÓN DE VOZ (TEXT-TO-SPEECH AUTOMATIZADO) ---
 async function escucharTermino() {
     if (!tarjetaActual || !tarjetaActual.termino) return;
