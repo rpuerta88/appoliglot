@@ -5,6 +5,13 @@ const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
+// Función para detectar si un texto pertenece a un idioma de derecha a izquierda (RTL)
+function esTextoRTL(texto) {
+  // Expresión regular que cubre los bloques de caracteres Árabe, Hebreo, Siríaco, Dhivehi, N'Ko, etc.
+  const patronRTL = /[\u0591-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  return patronRTL.test(texto);
+}
+
 // Función auxiliar global para mostrar notificaciones nativas en Android
 async function mostrarNotificacion(mensaje) {
     try {
@@ -474,7 +481,20 @@ async function cargarSesionRepaso() {
     if (lblTipo) {
         lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
     }
-    if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
+    //~ if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
+      if (txtOrigen) {
+        txtOrigen.innerText = tarjetaActual.termino;
+            // NUEVO: Adaptación dinámica RTL para la tarjeta de repaso
+        if (esTextoRTL(tarjetaActual.termino)) {
+            txtOrigen.style.direction = "rtl";
+            txtOrigen.style.textAlign = "right";
+            txtOrigen.style.fontSize = "2.2rem"; // Los caracteres RTL suelen requerir un tamaño mayor para leerse bien
+        } else {
+            txtOrigen.style.direction = "ltr";
+            txtOrigen.style.textAlign = "center"; // O "left", según tus estilos CSS originales
+            txtOrigen.style.fontSize = ""; // Restablece al tamaño por defecto del CSS
+            }
+        }
       // NUEVO: Asignar la fonética de la tarjeta actual (si existe)
     txtFonetica = document.getElementById('repaso-fonetica');
     if (txtFonetica) {
@@ -605,7 +625,10 @@ async function ejecutarBusqueda() {
         contenedorResultados.innerHTML = window.cacheBusquedaActual.map(item => `
             <div class="tarjeta-resultado">
                 <div class="info-resultado">
-                    <strong class="termino-resultado">${item.termino}</strong> 
+                    
+                    <strong class="termino-resultado" style="direction: ${esTextoRTL(item.termino) ? 'rtl' : 'ltr'}; text-align: ${esTextoRTL(item.termino) ? 'right' : 'left'}; display: inline-block; width: 100%;">
+                         ${item.termino}
+                    </strong>
                     <span class="traduccion-resultado"> - ${item.traduccion}</span>
                     <br>
                     <small class="contexto-resultado" style="font-style: normal; color: #757575;">
@@ -833,17 +856,17 @@ window.cambiarPantalla = cambiarPantalla;
          
 // --- 2. MOSTRAR RESPUESTA ---
 function mostrarRespuesta() {
-    document.getElementById('tarjeta-dorso')?.classList.remove('oculta');
-    document.getElementById('btn-mostrar-respuesta')?.classList.add('oculta');
-    document.getElementById('botones-calificacion')?.classList.remove('oculta');
+    if (elTarjetaDorso) elTarjetaDorso.classList.remove('oculta');
+    if (elBtnMostrarResp) elBtnMostrarResp.classList.add('oculta');
+    if (elContenedorCalif) elContenedorCalif.classList.remove('oculta');
 }
          
 // --- 3. OCULTAR RESPUESTA ---
 function ocultarRespuesta() {
-    document.getElementById('tarjeta-dorso')?.classList.add('oculta');
-    document.getElementById('btn-mostrar-respuesta')?.classList.remove('oculta');
-    document.getElementById('botones-calificacion')?.classList.add('oculta');
-    document.getElementById('repaso-contexto')?.classList.add('oculta'); // Inicia oculto bajo la pista
+    if (elTarjetaDorso) elTarjetaDorso.classList.add('oculta');
+    if (elBtnMostrarResp) elBtnMostrarResp.classList.remove('oculta');
+    if (elContenedorCalif) elContenedorCalif.classList.add('oculta');
+    if (elRepasoContexto) elRepasoContexto.classList.add('oculta'); 
 }
 
 window.mostrarRespuesta = mostrarRespuesta;

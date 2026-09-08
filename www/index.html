@@ -59,30 +59,29 @@
         <!-- 2. PANTALLA DE REPASO ESPACIADO -->
         <section id="pantalla-repaso" class="pantalla oculta">
             <h2>Sesión de Repaso</h2>
-            <div id="tarjeta-estudio" class="tarjeta">
-                <div class="tarjeta-frente">
-                    <span id="repaso-tipo" class="etiqueta-tipo">Frase</span>
-                    <p id="repaso-origen">Cargando término...</p>
-                    <p id="repaso-fonetica" style="color: #555; font-size: 0.95rem; margin: -5px 0 10px 0; font-style: italic;"></p>
-                    <div class="herramientas-estudio" style="margin: 15px 0;">
-                    
-                    <!-- BLOQUE DE HERRAMIENTAS ADICIONALES (NUEVO) -->
-                    <div class="herramientas-estudio" style="margin: 15px 0;">
-                        <button type="button" onclick="escucharTermino()" class="btn-herramienta" title="Escuchar pronunciación">🔊 Escuchar</button>
-                        <button type="button" onclick="mostrarPistaVisual()" class="btn-herramienta" title="Ver pista de contexto" style="background-color: #9c27b0;">💡 Pista</button>
-                </div>
-
-                    <!-- El contexto ahora iniciará oculto bajo la pista -->
-                    <small id="repaso-contexto" class="oculta" style="display: block; margin-top: 10px; font-style: italic; color: #666;"></small>
-                </div>
-
-                <div id="tarjeta-dorso" class="tarjeta-dorso oculta">
-                    <hr>
-                    <p id="repaso-destino">Traducción aquí</p>
-                </div>
-            </div>
-            
             <div class="controles-repaso">
+                <div id="tarjeta-estudio" class="tarjeta">
+                    <!-- FRENTE DE LA TARJETA -->
+                    <div class="tarjeta-frente">
+                        <span id="repaso-tipo" class="etiqueta-tipo">Frase</span>
+                        <p id="repaso-origen">Cargando término...</p>
+                        <p id="repaso-fonetica" style="color: #555; font-size: 0.95rem; margin: -5px 0 10px 0; font-style: italic;"></p>
+        
+                     <!-- Bloque de herramientas limpio -->
+                        <div class="herramientas-estudio" style="margin: 15px 0;">
+                            <button type="button" onclick="escucharTermino()" class="btn-herramienta" title="Escuchar pronunciación">🔊 Escuchar</button>
+                            <button type="button" onclick="mostrarPistaVisual()" class="btn-herramienta" title="Ver pista de contexto" style="background-color: #9c27b0;">💡 Pista</button>
+                            <small id="repaso-contexto" class="oculta" style="display: block; margin-top: 10px; font-style: italic; color: #666;"></small>
+                        </div>
+                    </div> <!-- AQUÍ CIERRA EL FRENTE -->
+
+                    <!-- DORSO DE LA TARJETA (EXTERNO AL FRENTE) -->
+                    <div id="tarjeta-dorso" class="tarjeta-dorso oculta">
+                        <hr>
+                        <p id="repaso-destino">Traducción aquí</p>
+                    </div>
+            </div>
+
                 <button id="btn-mostrar-respuesta" onclick="mostrarRespuesta()" class="btn-accion">Mostrar Respuesta</button>
                 
                 <div id="botones-calificacion" class="grupo-botones oculta">
