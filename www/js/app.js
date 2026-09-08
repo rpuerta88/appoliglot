@@ -5,6 +5,15 @@ const SQLitePlugin = Capacitor.Plugins.CapacitorSQLite;
 let db_real = null;
 let tarjetaActual = null;
 let idElementoEdicion = null;
+// --- CENTRALIZACIÓN DEL DOM DE INTERFAZ (Se declara arriba una sola vez) ---
+const panelesPantallas = document.querySelectorAll('.pantalla');
+const enlacesNavegacion = document.querySelectorAll('.btn-nav');
+// Elementos de la interfaz de repaso interactivo
+const elTarjetaDorso = document.getElementById('tarjeta-dorso');
+const elBtnMostrarResp = document.getElementById('btn-mostrar-respuesta');
+const elContenedorCalif = document.getElementById('botones-calificacion');
+const elRepasoContexto = document.getElementById('repaso-contexto');
+
 // Función para detectar si un texto pertenece a un idioma de derecha a izquierda (RTL)
 function esTextoRTL(texto) {
   // Expresión regular que cubre los bloques de caracteres Árabe, Hebreo, Siríaco, Dhivehi, N'Ko, etc.
@@ -496,7 +505,7 @@ async function cargarSesionRepaso() {
             }
         }
       // NUEVO: Asignar la fonética de la tarjeta actual (si existe)
-    txtFonetica = document.getElementById('repaso-fonetica');
+    //~ txtFonetica = document.getElementById('repaso-fonetica');
     if (txtFonetica) {
     txtFonetica.innerText = tarjetaActual.fonetica ? `[ ${tarjetaActual.fonetica} ]` : "";
     }
@@ -816,15 +825,6 @@ function mostrarPistaVisual() {
 // =========================================================================
 // 10. NAVEGACIÓN SPA E INTERFAZ CORREGIDO 20260901
 // =========================================================================
-// --- CENTRALIZACIÓN DEL DOM DE INTERFAZ (Se declara arriba una sola vez) ---
-const panelesPantallas = document.querySelectorAll('.pantalla');
-const enlacesNavegacion = document.querySelectorAll('.btn-nav');
-
-// Elementos de la interfaz de repaso interactivo
-const elTarjetaDorso = document.getElementById('tarjeta-dorso');
-const elBtnMostrarResp = document.getElementById('btn-mostrar-respuesta');
-const elContenedorCalif = document.getElementById('botones-calificacion');
-const elRepasoContexto = document.getElementById('repaso-contexto');
 
 // --- 1. CONTROL DE NAVEGACIÓN ---
 function cambiarPantalla(idPantallaObjetivo) {
