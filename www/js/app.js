@@ -476,7 +476,7 @@ async function cargarSesionRepaso() {
     }
     if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
       // NUEVO: Asignar la fonética de la tarjeta actual (si existe)
-    const txtFonetica = document.getElementById('repaso-fonetica');
+    txtFonetica = document.getElementById('repaso-fonetica');
     if (txtFonetica) {
     txtFonetica.innerText = tarjetaActual.fonetica ? `[ ${tarjetaActual.fonetica} ]` : "";
     }
