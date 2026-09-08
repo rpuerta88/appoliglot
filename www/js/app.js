@@ -411,6 +411,11 @@ async function cargarSesionRepaso() {
     const txtContexto = document.getElementById('repaso-contexto');
     if (txtContexto) txtContexto.classList.add('oculta');
 
+    // NUEVO: Limpiar el campo de fonética anterior
+    const txtFonetica = document.getElementById('repaso-fonetica');
+    if (txtFonetica) txtFonetica.innerText = "";
+
+
     const fecha = new Date();
     const hoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
     let pendientes = [];
@@ -470,6 +475,12 @@ async function cargarSesionRepaso() {
         lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
     }
     if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
+      // NUEVO: Asignar la fonética de la tarjeta actual (si existe)
+    const txtFonetica = document.getElementById('repaso-fonetica');
+    if (txtFonetica) {
+    txtFonetica.innerText = tarjetaActual.fonetica ? `[ ${tarjetaActual.fonetica} ]` : "";
+    }
+
     if (txtContexto) {
         txtContexto.innerText = tarjetaActual.contexto || "Sin contexto adicional registrado";
     }
