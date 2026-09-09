@@ -912,58 +912,54 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =========================================================================
 async function exportarRespaldo() {
     try {
+        // En Capacitor 6, los plugins se extraen directamente desde el objeto global
         const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
+        const Filesystem = window.Capacitor?.Plugins?.Filesystem;
         const Share = window.Capacitor?.Plugins?.Share;
 
-        if (!SQLite) throw new Error("Componente SQLite no disponible.");
+        if (!SQLite || !Filesystem || !Share) {
+            await mostrarNotificacion("❌ Error: Faltan compilar los plugins en el APK.");
+            return;
+        }
 
-        // 1. Extraemos los datos puros desde SQLite
+        // 1. Exportar la base de datos completa a formato JSON plano
         const jsonExportado = await SQLite.exportToJson({
             database: "mi_idioma_app",
             jsonexportmode: "full"
         });
 
         if (!jsonExportado || !jsonExportado.export) {
-            throw new Error("No hay datos válidos para respaldar.");
+            throw new Error("No hay registros en la base de datos.");
         }
 
-        // 2. Convertimos el objeto en una cadena de texto JSON legible
-        const datosTextoPlano = JSON.stringify(jsonExportado.export);
-        
-        // 3. Compartir directo mediante texto crudo (Método universal para WebView)
-        if (Share) {
-            // Enviamos el contenido directamente como texto plano estructurado.
-            // Android procesará esto de forma instantánea levantando WhatsApp.
-            await Share.share({
-                title: 'Respaldo de mi Vocabulario',
-                text: datosTextoPlano, // Inyectamos el texto directo aquí
-                dialogTitle: 'Enviar mi copia de seguridad por...'
-            });
-            
-            await mostrarNotificacion("✅ Menú de compartición abierto.");
-        } else if (navigator.share) {
-            // Respaldo secundario para navegadores móviles estándar
-            await navigator.share({
-                title: 'Respaldo Mi App de Idiomas',
-                text: datosTextoPlano
-            });
-        } else {
-            // Si por alguna razón lo ejecutas en la PC (Descarga un archivo local)
-            const blob = new Blob([datosTextoPlano], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `respaldo_idiomas.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            await mostrarNotificacion("💾 Archivo descargado en la PC.");
-        }
+        const dataStr = JSON.stringify(jsonExportado.export);
+        const nombreArchivo = "respaldo_idiomas.json";
+
+        // 2. Escribir el archivo físico en la caché interna de la App
+        await Filesystem.writeFile({
+            path: nombreArchivo,
+            data: dataStr,
+            directory: 'CACHE',
+            encoding: 'utf8'
+        });
+
+        // 3. Obtener la URI interna con permisos de lectura nativos
+        const uriResult = await Filesystem.getUri({
+            path: nombreArchivo,
+            directory: 'CACHE'
+        });
+
+        // 4. Invocar la cortina de Android para elegir WhatsApp
+        await Share.share({
+            title: 'Mi Respaldo de Idiomas',
+            text: 'Copia de seguridad de mi vocabulario (SRS).',
+            files: [uriResult.uri], 
+            dialogTitle: 'Compartir mi respaldo por...'
+        });
 
     } catch (error) {
-        console.error("Error crítico al exportar:", error);
-        await mostrarNotificacion("❌ El sistema bloqueó la exportación.");
+        console.error("Error en Capacitor 6:", error);
+        await mostrarNotificacion("❌ El sistema interrumpió la compartición.");
     }
 }
 

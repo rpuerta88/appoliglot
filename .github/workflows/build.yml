@@ -25,7 +25,7 @@ jobs:
 
     - name: Instalar Dependencias del Proyecto
       run: |
-        npm ci
+        npm install --legacy-peer-deps
 
     - name: Compilar Proyecto Web e Inyectar en Android
       run: |
