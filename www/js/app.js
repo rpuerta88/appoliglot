@@ -913,73 +913,57 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function exportarRespaldo() {
     try {
         const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
-        const Filesystem = window.Capacitor?.Plugins?.Filesystem;
         const Share = window.Capacitor?.Plugins?.Share;
 
-        if (!SQLite) throw new Error("Plugin SQLite no disponible");
+        if (!SQLite) throw new Error("Componente SQLite no disponible.");
 
-        // 1. Solicitar los datos a SQLite en formato JSON plano
+        // 1. Extraemos los datos puros desde SQLite
         const jsonExportado = await SQLite.exportToJson({
             database: "mi_idioma_app",
             jsonexportmode: "full"
         });
 
         if (!jsonExportado || !jsonExportado.export) {
-            throw new Error("No se pudieron extraer datos válidos.");
+            throw new Error("No hay datos válidos para respaldar.");
         }
 
-        const dataStr = JSON.stringify(jsonExportado.export);
-        const nombreArchivo = `respaldo_idiomas.json`;
-
-        // 2. EN MÓVILES (Android/iOS): Escribir archivo físico en caché y compartirlo
-        if (Filesystem && Share) {
-            // Guardar el string en el directorio temporal de caché del celular
-            await Filesystem.writeFile({
-                path: nombreArchivo,
-                data: dataStr,
-                directory: 'CACHE', // Directorio seguro del sistema
-                encoding: 'utf8'
-            });
-
-            // Obtener la URI interna del archivo real que Android pueda leer
-            const uriResult = await Filesystem.getUri({
-                path: nombreArchivo,
-                directory: 'CACHE'
-            });
-
-            // Abrir el menú nativo enviando el archivo real
+        // 2. Convertimos el objeto en una cadena de texto JSON legible
+        const datosTextoPlano = JSON.stringify(jsonExportado.export);
+        
+        // 3. Compartir directo mediante texto crudo (Método universal para WebView)
+        if (Share) {
+            // Enviamos el contenido directamente como texto plano estructurado.
+            // Android procesará esto de forma instantánea levantando WhatsApp.
             await Share.share({
                 title: 'Respaldo de mi Vocabulario',
-                text: 'Copia de seguridad de mi App de Idiomas.',
-                files: [uriResult.uri], // Enviamos la ruta del archivo físico
-                dialogTitle: 'Compartir mi respaldo por...'
+                text: datosTextoPlano, // Inyectamos el texto directo aquí
+                dialogTitle: 'Enviar mi copia de seguridad por...'
             });
-
+            
+            await mostrarNotificacion("✅ Menú de compartición abierto.");
         } else if (navigator.share) {
-            // Alternativa para navegadores web móviles modernos
-            const archivo = new File([dataStr], nombreArchivo, { type: "application/json" });
+            // Respaldo secundario para navegadores móviles estándar
             await navigator.share({
-                files: [archivo],
                 title: 'Respaldo Mi App de Idiomas',
-                text: 'Copia de seguridad.'
+                text: datosTextoPlano
             });
         } else {
-            // Descarga tradicional si se prueba directamente en PC
-            const blob = new Blob([dataStr], { type: "application/json" });
+            // Si por alguna razón lo ejecutas en la PC (Descarga un archivo local)
+            const blob = new Blob([datosTextoPlano], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = nombreArchivo;
+            a.download = `respaldo_idiomas.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            await mostrarNotificacion("💾 Archivo descargado en la PC.");
         }
 
-        await mostrarNotificacion("✅ Operación finalizada.");
     } catch (error) {
-        console.error("Error al exportar:", error);
-        await mostrarNotificacion("❌ El sistema bloqueó o canceló la compartición.");
+        console.error("Error crítico al exportar:", error);
+        await mostrarNotificacion("❌ El sistema bloqueó la exportación.");
     }
 }
 
