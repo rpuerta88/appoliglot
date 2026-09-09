@@ -914,6 +914,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function exportarRespaldo() {
     try {
         const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
+        // Capturamos el plugin nativo de Compartir de Capacitor
+        const Share = window.Capacitor?.Plugins?.Share; 
+        
         if (!SQLite) throw new Error("Plugin SQLite no disponible");
 
         // 1. Solicita a SQLite la base de datos convertida a formato JSON completo
@@ -926,35 +929,46 @@ async function exportarRespaldo() {
             throw new Error("No se pudieron extraer datos válidos.");
         }
 
-        // 2. Convertir a texto plano
+        // 2. Convertir a texto plano legible
         const dataStr = JSON.stringify(jsonExportado.export);
+        const nombreArchivo = `respaldo_vocabulario_${new Date().toISOString().split('T')[0]}.json`;
 
-        // 3. Compartir o Descargar el archivo (Compatible con Navegador y Android)
-        if (navigator.share) {
-            // Si estás en Android, abre el menú nativo de compartir (WhatsApp, Drive, etc.)
-            const archivo = new File([dataStr], "respaldo_vocabulario.json", { type: "application/json" });
+        // 3. Forzar el menú nativo de Android para compartir (WhatsApp, Drive, etc.)
+        if (Share) {
+            // Convertimos el texto del respaldo a un formato seguro (Base64 data URI) para el plugin
+            const base64Data = "data:application/json;base64," + btoa(unescape(encodeURIComponent(dataStr)));
+            
+            await Share.share({
+                title: 'Respaldo de mi Vocabulario',
+                text: 'Aquí tienes la copia de seguridad de tu App de Idiomas.',
+                url: base64Data, // Esto le pasa el archivo directamente al sistema
+                dialogTitle: 'Enviar respaldo a través de...'
+            });
+        } else if (navigator.share) {
+            // Respaldo secundario si se prueba en navegadores modernos
+            const archivo = new File([dataStr], nombreArchivo, { type: "application/json" });
             await navigator.share({
                 files: [archivo],
                 title: 'Respaldo Mi App de Idiomas',
-                text: 'Aquí tienes la copia de seguridad de tu vocabulario.'
+                text: 'Copia de seguridad de mi vocabulario.'
             });
         } else {
-            // Respaldo clásico de descarga en navegador (Canaimita / PC)
+            // Descarga clásica en PC de escritorio
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `respaldo_vocabulario_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = nombreArchivo;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
 
-        await mostrarNotificacion("✅ Respaldo exportado correctamente.");
+        await mostrarNotificacion("✅ Proceso de respaldo completado.");
     } catch (error) {
         console.error("Error al exportar:", error);
-        await mostrarNotificacion("❌ Error al crear la copia de seguridad.");
+        await mostrarNotificacion("❌ Cancelado o error al compartir el archivo.");
     }
 }
 
