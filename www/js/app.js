@@ -489,7 +489,6 @@ async function cargarSesionRepaso() {
     if (lblTipo) {
         lblTipo.innerText = `${tarjetaActual.tipo.toUpperCase()} | ${tarjetaActual.idioma_nombre} | ${tarjetaActual.categoria_nombre}`;
     }
-    //~ if (txtOrigen) txtOrigen.innerText = tarjetaActual.termino;
       if (txtOrigen) {
         txtOrigen.innerText = tarjetaActual.termino;
             // NUEVO: Adaptación dinámica RTL para la tarjeta de repaso
@@ -504,7 +503,6 @@ async function cargarSesionRepaso() {
             }
         }
       // NUEVO: Asignar la fonética de la tarjeta actual (si existe)
-    //~ txtFonetica = document.getElementById('repaso-fonetica');
     if (txtFonetica) {
     txtFonetica.innerText = tarjetaActual.fonetica ? `[ ${tarjetaActual.fonetica} ]` : "";
     }
@@ -909,3 +907,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// =========================================================================
+// 12. SISTEMA DE RESPALDO Y RESTAURACIÓN (NUEVO 2026)
+// =========================================================================
+
+async function exportarRespaldo() {
+    try {
+        const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
+        if (!SQLite) throw new Error("Plugin SQLite no disponible");
+
+        // 1. Solicita a SQLite la base de datos convertida a formato JSON completo
+        const jsonExportado = await SQLite.exportToJson({
+            database: "mi_idioma_app",
+            jsonexportmode: "full"
+        });
+
+        if (!jsonExportado || !jsonExportado.export) {
+            throw new Error("No se pudieron extraer datos válidos.");
+        }
+
+        // 2. Convertir a texto plano
+        const dataStr = JSON.stringify(jsonExportado.export);
+
+        // 3. Compartir o Descargar el archivo (Compatible con Navegador y Android)
+        if (navigator.share) {
+            // Si estás en Android, abre el menú nativo de compartir (WhatsApp, Drive, etc.)
+            const archivo = new File([dataStr], "respaldo_vocabulario.json", { type: "application/json" });
+            await navigator.share({
+                files: [archivo],
+                title: 'Respaldo Mi App de Idiomas',
+                text: 'Aquí tienes la copia de seguridad de tu vocabulario.'
+            });
+        } else {
+            // Respaldo clásico de descarga en navegador (Canaimita / PC)
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `respaldo_vocabulario_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        await mostrarNotificacion("✅ Respaldo exportado correctamente.");
+    } catch (error) {
+        console.error("Error al exportar:", error);
+        await mostrarNotificacion("❌ Error al crear la copia de seguridad.");
+    }
+}
+
+async function importarRespaldo() {
+    try {
+        const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
+        if (!SQLite) throw new Error("Plugin SQLite no disponible");
+
+        // 1. Crear un selector de archivos invisible en HTML
+        const inputArchivo = document.createElement('input');
+        inputArchivo.type = 'file';
+        inputArchivo.accept = '.json';
+
+        inputArchivo.onchange = async (e) => {
+            const archivo = e.target.files[0];
+            if (!archivo) return;
+
+            const lector = new FileReader();
+            lector.onload = async (evento) => {
+                try {
+                    const contenidoJson = JSON.parse(evento.target.result);
+
+                    // 2. Validar la estructura nativa antes de inyectar
+                    const jsonValidado = await SQLite.isJsonValid({ jsonstring: JSON.stringify(contenidoJson) });
+                    if (!jsonValidado.result) {
+                        throw new Error("El archivo seleccionado no tiene un formato válido de base de datos.");
+                    }
+
+                    // 3. Importar los datos a la base de datos limpia de forma atómica
+                    await SQLite.importFromJson({ jsonstring: JSON.stringify(contenidoJson) });
+                    
+                    // 4. Forzar refresco completo de la UI y los Selectores
+                    await poblarSelectores();
+                    await actualizarEstadisticas();
+
+                    await mostrarNotificacion("🎉 ¡Base de datos restaurada con éxito!");
+                } catch (err) {
+                    console.error(err);
+                    mostrarNotificacion("❌ Archivo corrupto o incompatible.");
+                }
+            };
+            lector.readAsText(archivo);
+        };
+
+        inputArchivo.click();
+    } catch (error) {
+        console.error("Error al importar:", error);
+        await mostrarNotificacion("❌ No se pudo restaurar el respaldo.");
+    }
+}
+
+// Hacer las funciones accesibles globalmente desde el HTML
+window.exportarRespaldo = exportarRespaldo;
+window.importarRespaldo = importarRespaldo;
