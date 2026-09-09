@@ -431,9 +431,8 @@ async function cargarSesionRepaso() {
     const txtFonetica = document.getElementById('repaso-fonetica');
     if (txtFonetica) txtFonetica.innerText = "";
 
-
-    const fecha = new Date();
-    const hoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+    // REEMPLAZO EN LÍNEAS 435-436 (Elimina el cálculo manual con getMonth)
+    const hoy = new Date().toISOString().split('T')[0];
     let pendientes = [];
 
     try {
