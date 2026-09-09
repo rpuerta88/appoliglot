@@ -910,16 +910,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =========================================================================
 // 12. SISTEMA DE RESPALDO Y RESTAURACIÓN (NUEVO 2026)
 // =========================================================================
-
 async function exportarRespaldo() {
     try {
         const SQLite = window.Capacitor?.Plugins?.CapacitorSQLite;
-        // Capturamos el plugin nativo de Compartir de Capacitor
-        const Share = window.Capacitor?.Plugins?.Share; 
-        
+        const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+        const Share = window.Capacitor?.Plugins?.Share;
+
         if (!SQLite) throw new Error("Plugin SQLite no disponible");
 
-        // 1. Solicita a SQLite la base de datos convertida a formato JSON completo
+        // 1. Solicitar los datos a SQLite en formato JSON plano
         const jsonExportado = await SQLite.exportToJson({
             database: "mi_idioma_app",
             jsonexportmode: "full"
@@ -929,31 +928,43 @@ async function exportarRespaldo() {
             throw new Error("No se pudieron extraer datos válidos.");
         }
 
-        // 2. Convertir a texto plano legible
         const dataStr = JSON.stringify(jsonExportado.export);
-        const nombreArchivo = `respaldo_vocabulario_${new Date().toISOString().split('T')[0]}.json`;
+        const nombreArchivo = `respaldo_idiomas.json`;
 
-        // 3. Forzar el menú nativo de Android para compartir (WhatsApp, Drive, etc.)
-        if (Share) {
-            // Convertimos el texto del respaldo a un formato seguro (Base64 data URI) para el plugin
-            const base64Data = "data:application/json;base64," + btoa(unescape(encodeURIComponent(dataStr)));
-            
+        // 2. EN MÓVILES (Android/iOS): Escribir archivo físico en caché y compartirlo
+        if (Filesystem && Share) {
+            // Guardar el string en el directorio temporal de caché del celular
+            await Filesystem.writeFile({
+                path: nombreArchivo,
+                data: dataStr,
+                directory: 'CACHE', // Directorio seguro del sistema
+                encoding: 'utf8'
+            });
+
+            // Obtener la URI interna del archivo real que Android pueda leer
+            const uriResult = await Filesystem.getUri({
+                path: nombreArchivo,
+                directory: 'CACHE'
+            });
+
+            // Abrir el menú nativo enviando el archivo real
             await Share.share({
                 title: 'Respaldo de mi Vocabulario',
-                text: 'Aquí tienes la copia de seguridad de tu App de Idiomas.',
-                url: base64Data, // Esto le pasa el archivo directamente al sistema
-                dialogTitle: 'Enviar respaldo a través de...'
+                text: 'Copia de seguridad de mi App de Idiomas.',
+                files: [uriResult.uri], // Enviamos la ruta del archivo físico
+                dialogTitle: 'Compartir mi respaldo por...'
             });
+
         } else if (navigator.share) {
-            // Respaldo secundario si se prueba en navegadores modernos
+            // Alternativa para navegadores web móviles modernos
             const archivo = new File([dataStr], nombreArchivo, { type: "application/json" });
             await navigator.share({
                 files: [archivo],
                 title: 'Respaldo Mi App de Idiomas',
-                text: 'Copia de seguridad de mi vocabulario.'
+                text: 'Copia de seguridad.'
             });
         } else {
-            // Descarga clásica en PC de escritorio
+            // Descarga tradicional si se prueba directamente en PC
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -965,12 +976,13 @@ async function exportarRespaldo() {
             URL.revokeObjectURL(url);
         }
 
-        await mostrarNotificacion("✅ Proceso de respaldo completado.");
+        await mostrarNotificacion("✅ Operación finalizada.");
     } catch (error) {
         console.error("Error al exportar:", error);
-        await mostrarNotificacion("❌ Cancelado o error al compartir el archivo.");
+        await mostrarNotificacion("❌ El sistema bloqueó o canceló la compartición.");
     }
 }
+
 
 async function importarRespaldo() {
     try {
