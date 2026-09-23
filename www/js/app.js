@@ -1088,3 +1088,48 @@ async function importarRespaldo() {
 // Hacer las funciones accesibles globalmente desde el HTML
 window.exportarRespaldo = exportarRespaldo;
 window.importarRespaldo = importarRespaldo;
+// =========================================================================
+// 13. CONTROL DE APERTURA Y CIERRE DEL MODAL DEL GLOSARIO (CORREGIDO)
+// =========================================================================
+function inicializarEventosModal() {
+    const modalGlosario = document.getElementById('modal-glosario');
+    const btnAbrir = document.getElementById('btn-abrir-glosario');
+    const btnCerrar = document.getElementById('btn-cerrar-glosario');
+
+    if (btnAbrir && modalGlosario) {
+        btnAbrir.addEventListener('click', async () => {
+            console.log("Abriendo modal del glosario...");
+            // Forzar refresco de los datos antes de desplegarlos
+            if (typeof actualizarEstadisticas === 'function') {
+                await actualizarEstadisticas();
+            }
+            // Retirar la clase CSS para que se vuelva visible
+            modalGlosario.classList.remove('oculta-modal');
+        });
+    } else {
+        console.warn("Advertencia: No se encontró el botón de apertura o el contenedor del modal en el DOM.");
+    }
+
+    if (btnCerrar && modalGlosario) {
+        btnCerrar.addEventListener('click', () => {
+            modalGlosario.classList.add('oculta-modal');
+        });
+    }
+
+    // Cerrar de forma segura si el usuario pulsa fuera de la tarjeta blanca (en el fondo oscuro)
+    if (modalGlosario) {
+        modalGlosario.addEventListener('click', (e) => {
+            if (e.target === modalGlosario) {
+                modalGlosario.classList.add('oculta-modal');
+            }
+        });
+    }
+}
+
+// Inyección limpia dentro del inicializador existente del ecosistema SPA
+document.addEventListener('DOMContentLoaded', () => {
+    // Le damos un pequeño margen de espera para asegurar que Capacitor dibuje la interfaz en Linux/Android
+    setTimeout(() => {
+        inicializarEventosModal();
+    }, 300);
+});
