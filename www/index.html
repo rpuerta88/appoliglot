@@ -105,7 +105,21 @@
         <!-- 4. PANTALLA DE CONFIGURACIÓN (NUEVA) -->
         <section id="pantalla-configuracion" class="pantalla oculta">
             <h2>Configuración y Progreso</h2>
-            
+            <!-- REEMPLAZAR O INTEGRAR EN LA SECCIÓN DE CONFIGURACIÓN Y PROGRESO -->
+        <div class="bloque-config">
+            <h3>📊 Tu Progreso de Aprendizaje</h3>
+            <div class="Metricas-basicas">
+                <p><strong id="est-aprendizaje">0</strong> En Aprendizaje</p>
+                <p><strong id="est-automatizadas">0</strong> Automatizadas</p>
+            </div>
+
+        <!-- NUEVO: Estadísticas Desglosadas por Idioma -->
+        <h4 style="margin-top: 15px; margin-bottom: 5px;">Idiomas Registrados:</h4>
+        <div id="estadisticas-idiomas" class="contenedor-lista-estadisticas">
+            <p class="cargando-texto">Cargando estadísticas de idiomas...</p>
+        </div>
+        </div>
+
             <!-- Panel de Estadísticas (NUEVO) -->
             <div class="bloque-config" style="border-top-color: #9c27b0;">
                 <h3>📊 Tu Progreso de Aprendizaje</h3>
@@ -147,6 +161,11 @@
                     <button type="submit" class="btn-guardar btn-secundario">Registrar Categoría</button>
                 </form>
             </div>
+            <!-- Botón para abrir el modal del glosario -->
+            <button type="button" class="btn-accion" id="btn-abrir-glosario" style="margin-top: 15px; background-color: #009688;">
+                📋 Ver Glosario Rápido (Origen & Fonética)
+            </button>
+
             <!-- Bloque Sistema de Respaldo (NUEVO) -->
             <div class="bloque-config" style="border-top-color: #4caf50;">
                 <h3>💾 Copia de Seguridad</h3>
@@ -167,6 +186,26 @@
 
     </main>
 
+    <!-- VENTANA MODAL: GLOSARIO RÁPIDO -->
+    <div id="modal-glosario" class="modal-capa oculta-modal">
+        <div class="modal-contenedor">
+            <div class="modal-cabecera">
+                <h3>📋 Glosario Rápido</h3>
+                <button id="btn-cerrar-glosario" class="btn-cerrar-modal">&times;</button>
+            </div>
+            <div class="modal-cuerpo">
+                <p style="font-size: 0.85rem; color: #666; margin-top: 0; margin-bottom: 10px;">
+                Lista plana de todos tus términos registrados y su lectura fonética.
+                </p>
+                <!-- Aquí se inyectarán los datos desde JavaScript -->
+                <div id="lista-plana-fonetica" class="lista-plana-contenedor">
+                    <p class="cargando-texto">Cargando glosario...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
     <!-- SCRIPTS -->
     <script src="js/app.js" defer></script>
 </body>

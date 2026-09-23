@@ -731,32 +731,105 @@ async function eliminarElemento(idEliminar) {
 // =========================================================================
 // 8. INDICADORES DE PROGRESO (Estadísticas Reales) CORREGIDO 20260901
 // =========================================================================
+
 async function actualizarEstadisticas() {
     const txtAprendizaje = document.getElementById('est-aprendizaje');
     const txtAutomatizadas = document.getElementById('est-automatizadas');
+    const contenedorIdiomas = document.getElementById('estadisticas-idiomas');
+    const contenedorListaPlana = document.getElementById('lista-plana-fonetica');
     
-    if (!txtAprendizaje || !txtAutomatizadas || !db_real) return;
+    if (!db_real) return;
     
+    // --- 1. MÁXIMA PRIORIDAD: MÉTRICAS BÁSICAS GLOBALES ---
     try {
-        // MEJORA 1: Una única consulta SQL que clasifica y cuenta todo de un solo viaje
-        const sqlQuery = `
-            SELECT 
-                COUNT(CASE WHEN estado IN ('aprendizaje', 'repaso') THEN 1 END) AS total_estudio,
-                COUNT(CASE WHEN estado = 'automatizada' THEN 1 END) AS total_auto
-            FROM elementos;
-        `;
-        
-        const resultado = await db_real.query({ statement: sqlQuery });
-        const metricas = resultado.values?.[0] || { total_estudio: 0, total_auto: 0 };
-        
-        // MEJORA 2: Inyección directa en la interfaz gráfica
-        txtAprendizaje.innerText = metricas.total_estudio;
-        txtAutomatizadas.innerText = metricas.total_auto;
-        
-        console.log("📊 Estadísticas del vocabulario actualizadas en tiempo real.");
+        if (txtAprendizaje && txtAutomatizadas) {
+            const sqlQuery = `
+                SELECT 
+                    COUNT(CASE WHEN estado IN ('aprendizaje', 'repaso') THEN 1 END) AS total_estudio,
+                    COUNT(CASE WHEN estado = 'automatizada' THEN 1 END) AS total_auto
+                FROM elementos;
+            `;
+            const resultado = await db_real.query({ statement: sqlQuery });
+            const metricas = resultado.values?.[0] || { total_estudio: 0, total_auto: 0 };
+            
+            txtAprendizaje.innerText = metricas.total_estudio;
+            txtAutomatizadas.innerText = metricas.total_auto;
+        }
     } catch (error) {
-        console.error("Error al calcular estadísticas en SQLite:", error);
+        console.error("Error al calcular estadísticas globales:", error);
     }
+
+    // --- 2. NUEVA FUNCIONALIDAD: ESTADÍSTICAS DE TÉRMINOS/FRASES POR IDIOMA ---
+    try {
+        if (contenedorIdiomas) {
+            const sqlIdiomas = `
+                SELECT 
+                    i.nombre AS idioma, 
+                    i.simbolo,
+                    COUNT(CASE WHEN e.tipo = 'palabra' THEN 1 END) AS palabras,
+                    COUNT(CASE WHEN e.tipo = 'frase' THEN 1 END) AS frases,
+                    COUNT(e.id) AS total
+                FROM idiomas i
+                LEFT JOIN elementos e ON i.id = e.idioma_id
+                GROUP BY i.id
+                ORDER BY i.nombre ASC;
+            `;
+            const resIdiomas = await db_real.query({ statement: sqlIdiomas });
+            const datosIdiomas = resIdiomas.values || [];
+
+            if (datosIdiomas.length === 0) {
+                contenedorIdiomas.innerHTML = '<p class="busqueda-vacia">No hay idiomas registrados ni estadísticas.</p>';
+            } else {
+                contenedorIdiomas.innerHTML = datosIdiomas.map(idioma => `
+                    <div class="fila-estadistica-idioma">
+                        <span class="nombre-idioma-est"><strong>${idioma.idioma}</strong> (${idioma.simbolo})</span>
+                        <div class="conteo-bloques-est">
+                            <span class="badge-est palabra-bg">${idioma.palabras} pág.</span>
+                            <span class="badge-est frase-bg">${idioma.frases} fras.</span>
+                            <span class="badge-est total-bg">Total: ${idioma.total}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (error) {
+        console.error("Error al procesar estadísticas por idioma:", error);
+        if (contenedorIdiomas) contenedorIdiomas.innerHTML = '<p class="busqueda-vacia">Error al cargar estadísticas.</p>';
+    }
+
+    // --- 3. NUEVA FUNCIONALIDAD: LISTA PLANA SÓLO EN VERSIÓN ORIGEN Y FONÉTICA ---
+    try {
+        if (contenedorListaPlana) {
+            const sqlListaPlana = `
+                SELECT termino, fonetica FROM elementos ORDER BY creado_en DESC, id DESC;
+            `;
+            const resLista = await db_real.query({ statement: sqlListaPlana });
+            const elementosLista = resLista.values || [];
+
+            if (elementosLista.length === 0) {
+                contenedorListaPlana.innerHTML = '<p class="busqueda-vacia">El vocabulario está vacío.</p>';
+            } else {
+                contenedorListaPlana.innerHTML = elementosLista.map(item => {
+                    const foneticaTexto = item.fonetica && item.fonetica.trim() !== "" ? `[ ${item.fonetica.trim()} ]` : `<span class="sin-fonetica">Sin fonética</span>`;
+                    const esRTL = typeof esTextoRTL === 'function' ? esTextoRTL(item.termino) : false;
+                    
+                    return `
+                        <div class="item-lista-plana">
+                            <span class="termino-origen-plano" style="direction: ${esRTL ? 'rtl' : 'ltr'}; text-align: ${esRTL ? 'right' : 'left'}">
+                                ${item.termino}
+                            </span>
+                            <span class="fonetica-plana">${foneticaTexto}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error("Error al procesar la lista plana fonética:", error);
+        if (contenedorListaPlana) contenedorListaPlana.innerHTML = '<p class="busqueda-vacia">Error al cargar la lista plana.</p>';
+    }
+    
+    console.log("📊 Estadísticas detalladas e informes de listas planas actualizados con éxito.");
 }
       
 // =========================================================================
